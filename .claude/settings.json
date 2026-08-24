@@ -1,0 +1,91 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/kms/MiccoRAG-v3/**)",
+      "Read(//home/kms/**)",
+      "Write(//home/kms/MiccoRAG-v3/**)",
+      "Write(//home/kms/**)"
+    ],
+    "additionalDirectories": [
+      "/home/kms/MiccoRAG-v3/.claude/skills/playwright-e2e",
+      "/tmp/playwright-skill"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Block edits on main branch\n[ \"$(git branch --show-current)\" != \"main\" ] || { echo '{\"block\": true, \"message\": \"Cannot edit files on main branch. Create a feature branch first.\"}' >&2; exit 2; }",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Auto-format Python files with Ruff\nif [[ \"$CLAUDE_TOOL_INPUT_FILE_PATH\" =~ \\.py$ ]]; then\n  file_path=\"${CLAUDE_TOOL_INPUT_FILE_PATH}\"\n  ruff format \"$file_path\" 2>&1\n  ruff check --fix \"$file_path\" 2>&1\n  echo '{\"feedback\": \"Formatting applied.\", \"suppressOutput\": true}'\nfi",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "# Run pytest when test files change\nif [[ \"$CLAUDE_TOOL_INPUT_FILE_PATH\" =~ test_.*\\.py$ || \"$CLAUDE_TOOL_INPUT_FILE_PATH\" =~ _test\\.py$ ]]; then\n  echo '{\"feedback\": \"Running tests...\"}' >&2\n  pytest \"$CLAUDE_TOOL_INPUT_FILE_PATH\" -x --tb=short 2>&1 | tail -20\n  exit_code=${PIPESTATUS[0]}\n  if [ $exit_code -eq 0 ]; then\n    echo '{\"feedback\": \"Tests passed.\"}'\n  else\n    echo '{\"feedback\": \"Tests failed. See output above.\"}' >&2\n  fi\nfi",
+            "timeout": 90
+          }
+        ]
+      }
+    ]
+  },
+  "agents": {
+    "backend-dev": {
+      "name": "Backend Developer Agent",
+      "description": "Agent phụ trách phát triển backend code trong micco-backend/backend. Chịu trách nhiệm implement API endpoints, services, models, và đảm bảo code quality theo CLAUDE.md rules.",
+      "working_directory": "/home/kms/MiccoRAG-v3/micco-backend/backend",
+      "instructions_file": ".claude/backend-agent.md",
+      "capabilities": [
+        "Implement FastAPI endpoints",
+        "Write unit/integration tests",
+        "Database migrations",
+        "LLM integration",
+        "RAG pipeline development"
+      ]
+    },
+    "frontend-dev": {
+      "name": "Frontend Developer Agent",
+      "description": "Agent phụ trách phát triển frontend code trong micco-frontend. Chịu trách nhiệm implement UI components, API calls, state management, và đảm bảo responsive design.",
+      "working_directory": "/home/kms/MiccoRAG-v3/micco-frontend",
+      "instructions_file": ".claude/frontend-agent.md",
+      "capabilities": [
+        "React/Vite component development",
+        "API integration",
+        "State management",
+        "Responsive design",
+        "Performance optimization"
+      ]
+    },
+    "qa-tester": {
+      "name": "QA Tester Agent",
+      "description": "Agent phụ trách testing và quality assurance. Chạy tests nhiều lần, đảm bảo chất lượng đạt 95% yêu cầu trước khi bàn giao.",
+      "working_directory": "/home/kms/MiccoRAG-v3",
+      "instructions_file": ".claude/qa-agent.md",
+      "capabilities": [
+        "Run unit tests",
+        "Run integration tests",
+        "E2E testing",
+        "Quality reporting",
+        "Performance testing"
+      ]
+    }
+  }
+}
