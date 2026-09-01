@@ -194,7 +194,7 @@ class ChatSourceChunk(BaseModel):
     page_no: int = 0
     heading_path: list[str] = []
     score: float = 0.0
-    source_type: str = "vector"  # "vector" | "kg"
+    source_type: str = "vector"  # "vector" | "kg" | "dataset"
 
 
 class ChatImageRef(BaseModel):

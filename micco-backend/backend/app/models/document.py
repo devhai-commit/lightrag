@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, DateTime, Integer, Text, Enum
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Text, Enum, Boolean, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 import enum
@@ -51,6 +51,7 @@ class Document(Base):
     page_count: Mapped[int] = mapped_column(Integer, default=0)
     image_count: Mapped[int] = mapped_column(Integer, default=0)
     table_count: Mapped[int] = mapped_column(Integer, default=0)
+    dataset_count: Mapped[int] = mapped_column(Integer, default=0)
     parser_version: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "docling" | "legacy"
     processing_time_ms: Mapped[int] = mapped_column(Integer, default=0)
 
@@ -65,6 +66,9 @@ class Document(Base):
         back_populates="document", cascade="all, delete-orphan"
     )
     tables: Mapped[list["DocumentTable"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+    datasets: Mapped[list["DocumentDataset"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
     versions: Mapped[list["DocumentVersion"]] = relationship(
@@ -107,3 +111,28 @@ class DocumentTable(Base):
 
     # Relationships
     document: Mapped["Document"] = relationship(back_populates="tables")
+
+
+class DocumentDataset(Base):
+    """Structured, typed row data extracted from one sheet of a spreadsheet.
+
+    Populated by ``SpreadsheetDocumentParser`` (see
+    ``app/services/document_parser/spreadsheet_parser.py``) and consumed by
+    the ``aggregate_spreadsheet_data`` chat tool for exact arithmetic over
+    spreadsheet data instead of LLM eyeball-summing from retrieved chunks.
+    """
+    __tablename__ = "document_datasets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"))
+    dataset_id: Mapped[str] = mapped_column(String(100), unique=True)  # UUID
+    sheet_name: Mapped[str] = mapped_column(String(255))
+    columns: Mapped[list] = mapped_column(JSON)  # [{"name":..., "col_type":..., "unit":...}]
+    row_count: Mapped[int] = mapped_column(Integer, default=0)
+    rows: Mapped[list] = mapped_column(JSON)
+    truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    truncated_at_row: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    document: Mapped["Document"] = relationship(back_populates="datasets")

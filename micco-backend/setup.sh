@@ -59,13 +59,6 @@ else
     HAS_DOCKER=false
 fi
 
-# ffmpeg (required for Vietnamese speech-to-text: decodes browser webm/opus audio)
-if command -v ffmpeg &>/dev/null; then
-    echo "  ffmpeg $(ffmpeg -version | head -n1 | cut -d' ' -f3)"
-else
-    echo "  ffmpeg: not found (voice-to-text feature will fail to decode webm/opus audio without it)"
-fi
-
 echo ""
 
 # -----------------------------------------------------------

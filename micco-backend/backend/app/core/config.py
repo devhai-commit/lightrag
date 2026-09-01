@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     NEXUSRAG_DOCUMENT_PARSER: str = "docling"
     NEXUSRAG_MARKER_USE_LLM: bool = False
 
+    # Spreadsheet parser (.xlsx / .csv) — caps for structured data ingestion
+    NEXUSRAG_SPREADSHEET_MAX_ROWS_PER_SHEET: int = 5000
+    NEXUSRAG_SPREADSHEET_MAX_SHEETS_PER_WORKBOOK: int = 50
+    NEXUSRAG_SPREADSHEET_SAMPLE_ROWS_IN_SUMMARY: int = 5
+    NEXUSRAG_AGGREGATION_MAX_GROUPS: int = 50
+
     # Processing timeout (minutes) — stale documents auto-recover to FAILED
     NEXUSRAG_PROCESSING_TIMEOUT_MINUTES: int = 10
 

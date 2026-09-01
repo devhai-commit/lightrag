@@ -5,7 +5,7 @@ import {
     AlertCircle, Sparkles, RefreshCw, Database,
     Search, Cpu, CheckCircle2, ChevronRight,
     Settings, RotateCcw, Save, LayoutPanelLeft,
-    Copy, Check, Mic, Square
+    Copy, Check, Mic, Square, Calculator
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { workspacesApi, ragChatApi, ragDocumentsApi, sttApi, readSSEStream } from '../utils/api';
@@ -289,6 +289,12 @@ const STEP_CONFIG = {
         color: 'text-blue-500',
         bg: 'bg-blue-50 dark:bg-blue-500/10',
     },
+    calculating: {
+        label: 'Đang tính toán số liệu...',
+        icon: Calculator,
+        color: 'text-orange-500',
+        bg: 'bg-orange-50 dark:bg-orange-500/10',
+    },
     generating: {
         label: 'Đang tạo câu trả lời...',
         icon: Cpu,
@@ -311,7 +317,7 @@ const STEP_CONFIG = {
 
 function ReasoningSteps({ steps, currentStep, detail }) {
     if (!steps.length && !currentStep) return null;
-    const allSteps = ['analyzing', 'retrieving', 'generating'];
+    const allSteps = ['analyzing', 'retrieving', 'calculating', 'generating'];
     const completedSteps = allSteps.slice(0, allSteps.indexOf(currentStep));
 
     return (
