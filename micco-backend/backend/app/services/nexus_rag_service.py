@@ -12,15 +12,20 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
+from dataclasses import asdict
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from app.core.config import settings
-from app.models.document import Document, DocumentImage, DocumentTable, DocumentStatus
+from app.models.document import Document, DocumentImage, DocumentTable, DocumentDataset, DocumentStatus
 from app.models.knowledge_entry import KnowledgeEntry
 from app.services.document_parser import get_document_parser
+from app.services.document_parser.base import BaseDocumentParser
+from app.services.document_parser.spreadsheet_parser import SpreadsheetDocumentParser
 from app.services.chunker import DocumentChunker, TextChunk
 from app.services.knowledge_graph_service import KnowledgeGraphService
 from app.services.deep_retriever import DeepRetriever
@@ -60,6 +65,7 @@ class NexusRAGService:
 
         # Services
         self.parser = get_document_parser(workspace_id=workspace_id)
+        self._spreadsheet_parser: Optional[BaseDocumentParser] = None
         self.embedder = get_embedding_service()
         self.vector_store = get_vector_store(workspace_id)
 
@@ -108,8 +114,19 @@ class NexusRAGService:
             await self.db.commit()
 
             import asyncio
+
+            ext = Path(file_path).suffix.lower()
+            if ext in SpreadsheetDocumentParser.supported_extensions():
+                if self._spreadsheet_parser is None:
+                    self._spreadsheet_parser = get_document_parser(
+                        workspace_id=self.workspace_id, file_path=file_path
+                    )
+                active_parser = self._spreadsheet_parser
+            else:
+                active_parser = self.parser
+
             parsed = await asyncio.to_thread(
-                self.parser.parse,
+                active_parser.parse,
                 file_path=file_path,
                 document_id=document_id,
                 original_filename=document.original_filename,
@@ -119,7 +136,7 @@ class NexusRAGService:
             document.markdown_content = parsed.markdown
             document.page_count = parsed.page_count
             document.table_count = parsed.tables_count
-            document.parser_version = self.parser.parser_name
+            document.parser_version = active_parser.parser_name
             await self.db.commit()
 
             # Clean up old image records before saving new ones (handles re-processing)
@@ -165,6 +182,28 @@ class NexusRAGService:
                 self.db.add(db_table)
             if parsed.tables:
                 await self.db.commit()
+
+            # Clean up old dataset records before saving new ones (handles re-processing)
+            await self.db.execute(
+                delete(DocumentDataset).where(DocumentDataset.document_id == document_id)
+            )
+            await self.db.commit()
+
+            # Save extracted spreadsheet datasets to DB
+            for dataset in parsed.datasets:
+                db_dataset = DocumentDataset(
+                    document_id=document_id,
+                    dataset_id=str(uuid.uuid4()),
+                    sheet_name=dataset.sheet_name,
+                    columns=[asdict(c) for c in dataset.columns],
+                    row_count=dataset.row_count,
+                    rows=dataset.rows,
+                    truncated=dataset.truncated,
+                    truncated_at_row=dataset.truncated_at_row,
+                )
+                self.db.add(db_dataset)
+            document.dataset_count = len(parsed.datasets)
+            await self.db.commit()
 
             # Phase 1.5: PRE-INGESTION DEDUP
             if parsed.chunks:

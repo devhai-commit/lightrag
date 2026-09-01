@@ -22,9 +22,21 @@ from app.services.document_parser.base import BaseDocumentParser
 def get_document_parser(
     workspace_id: int,
     output_dir: Optional[Path] = None,
+    file_path: Optional[str | Path] = None,
 ) -> BaseDocumentParser:
-    """Create a document parser based on ``NEXUSRAG_DOCUMENT_PARSER`` config."""
+    """Create a document parser based on ``NEXUSRAG_DOCUMENT_PARSER`` config.
+
+    When *file_path* is given and its extension is a spreadsheet extension
+    (``.xlsx``/``.csv``), the ``SpreadsheetDocumentParser`` is returned
+    immediately, bypassing the docling/marker branch entirely — spreadsheets
+    need structured typed-row parsing, not markdown chunking. Call sites that
+    don't pass *file_path* (the original call style) are unaffected.
+    """
     from app.core.config import settings
+    from app.services.document_parser.spreadsheet_parser import SpreadsheetDocumentParser
+
+    if file_path is not None and Path(file_path).suffix.lower() in SpreadsheetDocumentParser.supported_extensions():
+        return SpreadsheetDocumentParser(workspace_id, output_dir)
 
     provider = settings.NEXUSRAG_DOCUMENT_PARSER.lower()
 

@@ -35,13 +35,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db
 from app.models.knowledge_base import KnowledgeBase
-from app.models.document import DocumentImage
+from app.models.document import Document, DocumentImage, DocumentDataset
 from app.schemas.rag import (
     ChatRequest,
     ChatSourceChunk,
     ChatImageRef,
 )
 from app.services.llm.types import LLMMessage, LLMImagePart, StreamChunk
+from app.services import spreadsheet_aggregator
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_AGENT_ITERATIONS = 3
+MAX_AGENT_ITERATIONS = 4
 MAX_VISION_IMAGES = 3
 SSE_HEARTBEAT_INTERVAL = 15  # seconds
 
@@ -101,6 +102,62 @@ def _get_gemini_tool():
                 "required": ["query"],
             },
         ),
+        types.FunctionDeclaration(
+            name="aggregate_spreadsheet_data",
+            description=(
+                "Compute an exact aggregation (sum, average, min, max, count, count_distinct) "
+                "over the rows of one spreadsheet sheet. "
+                "Use this tool AFTER search_documents has revealed a relevant sheet's "
+                "document_id, sheet_name, and column names, to compute exact sums/averages/"
+                "totals for questions like 'tổng doanh thu quý 1' or 'so sánh doanh thu các năm' "
+                "(use group_by for comparisons across categories like year or quarter). "
+                "Never hand-calculate totals from retrieved text — always call this tool for "
+                "any arithmetic over spreadsheet data."
+            ),
+            parameters={
+                "type": "OBJECT",
+                "properties": {
+                    "document_id": {
+                        "type": "INTEGER",
+                        "description": "The document_id of the spreadsheet, as shown in the search_documents result (e.g. 'document_id=12').",
+                    },
+                    "sheet_name": {
+                        "type": "STRING",
+                        "description": "The exact sheet_name of the spreadsheet, as shown in the search_documents result (e.g. 'sheet_name=\"Q1 2024\"').",
+                    },
+                    "operation": {
+                        "type": "STRING",
+                        "description": (
+                            "One of: sum, average, min, max, count, count_distinct."
+                        ),
+                    },
+                    "column": {
+                        "type": "STRING",
+                        "description": "The exact column name to aggregate. Required unless operation=count.",
+                    },
+                    "group_by": {
+                        "type": "STRING",
+                        "description": "Optional column name to group the aggregation by (e.g. 'year' or 'quarter') for comparisons.",
+                    },
+                    "filters": {
+                        "type": "ARRAY",
+                        "description": "Optional list of filters to apply before aggregating.",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "column": {"type": "STRING"},
+                                "op": {
+                                    "type": "STRING",
+                                    "description": "One of: eq, neq, gt, gte, lt, lte, contains",
+                                },
+                                "value": {"type": "STRING"},
+                            },
+                        },
+                    },
+                },
+                "required": ["document_id", "sheet_name", "operation"],
+            },
+        ),
     ])
 
 
@@ -110,11 +167,39 @@ def _get_gemini_tool():
 # ---------------------------------------------------------------------------
 
 OLLAMA_TOOL_SYSTEM = """\
-## TOOL: search_documents
+## TOOLS: search_documents, aggregate_spreadsheet_data
 
-You have ONE tool: search_documents.  You call it by outputting EXACTLY:
+You have TWO tools: search_documents and aggregate_spreadsheet_data.
+
+### Decision rule
+- Semantic / qualitative questions (facts, definitions, explanations) → call search_documents.
+- Any question requiring a sum, average, total, count, or comparison across groups
+  (e.g. "tổng doanh thu quý 1", "so sánh doanh thu các năm") → call search_documents
+  FIRST to find the relevant sheet's document_id/sheet_name/columns, THEN call
+  aggregate_spreadsheet_data to compute the exact answer. NEVER hand-calculate a sum
+  or average yourself from retrieved text — the numbers in retrieved chunks are only
+  a preview and may be incomplete or split across rows.
+
+### TOOL: search_documents
+
+Call it by outputting EXACTLY:
 
 <tool_call>{"name": "search_documents", "arguments": {"query": "<rewritten query>"}}</tool_call>
+
+### TOOL: aggregate_spreadsheet_data
+
+Call it by outputting EXACTLY:
+
+<tool_call>{"name": "aggregate_spreadsheet_data", "arguments": {"document_id": 12, "sheet_name": "Q1 2024", "operation": "sum", "column": "Doanh thu", "group_by": null, "filters": []}}</tool_call>
+
+`operation` is one of: sum, average, min, max, count, count_distinct.
+`column` is required unless operation=count. `group_by` and `filters` are optional.
+
+Worked example — user asks "tổng doanh thu quý 1 là bao nhiêu?":
+1. Call search_documents with query "doanh thu quý 1, tổng doanh thu theo tháng".
+2. The result reveals document_id=12, sheet_name="Q1 2024", and a column "Doanh thu".
+3. Call: <tool_call>{"name": "aggregate_spreadsheet_data", "arguments": {"document_id": 12, "sheet_name": "Q1 2024", "operation": "sum", "column": "Doanh thu"}}</tool_call>
+4. Answer using the exact computed result, e.g. "Tổng doanh thu quý 1 là 4.850.000.000 VNĐ[a3x9]."
 
 ### ABSOLUTE RULES (violations are FATAL errors)
 
@@ -136,6 +221,9 @@ You have ONE tool: search_documents.  You call it by outputting EXACTLY:
 
 4. After receiving search results, answer using ONLY those sources with citations.
    Format: claim text[source_id]. Example: Doanh thu đạt 4.850 tỷ VNĐ[a3x9].
+
+5. If the sources reveal a spreadsheet sheet relevant to a sum/average/total/count
+   question, call aggregate_spreadsheet_data before answering with numbers.
 """
 
 OLLAMA_TOOL_REMINDER = (
@@ -381,6 +469,157 @@ async def _execute_search_documents(
         context += "\n\nDocument Images:\n" + "\n".join(image_context_parts)
 
     return context, sources, chat_image_refs, image_parts
+
+
+async def _execute_aggregate_spreadsheet_data(
+    workspace_id: int,
+    document_id: int,
+    sheet_name: str,
+    operation: str,
+    column: Optional[str],
+    group_by: Optional[str],
+    filters: Optional[list[dict]],
+    db: AsyncSession,
+    existing_ids: set[str],
+) -> tuple[str, Optional[ChatSourceChunk]]:
+    """Execute an exact aggregation over one spreadsheet sheet's dataset.
+
+    Workspace ownership is verified via a join on Document.workspace_id —
+    document_id comes straight from model output and could reference a
+    dataset belonging to another workspace, so this check is mandatory
+    (unlike search_documents, which is already workspace-scoped upstream).
+
+    Returns:
+        (formatted_text, source_chunk_or_None)
+    """
+    from app.core.config import settings
+
+    result = await db.execute(
+        select(DocumentDataset)
+        .join(Document, Document.id == DocumentDataset.document_id)
+        .where(
+            DocumentDataset.document_id == document_id,
+            DocumentDataset.sheet_name == sheet_name,
+            Document.workspace_id == workspace_id,
+        )
+    )
+    dataset = result.scalar_one_or_none()
+
+    if dataset is None:
+        # Distinguish "wrong sheet name" from "document not in this workspace"
+        doc_result = await db.execute(
+            select(Document.id).where(
+                Document.id == document_id, Document.workspace_id == workspace_id
+            )
+        )
+        if doc_result.scalar_one_or_none() is None:
+            return (
+                f"Error: document {document_id} was not found in this workspace.",
+                None,
+            )
+
+        sheets_result = await db.execute(
+            select(DocumentDataset.sheet_name).where(
+                DocumentDataset.document_id == document_id
+            )
+        )
+        available_sheets = [row[0] for row in sheets_result.all()]
+        if available_sheets:
+            return (
+                f"Error: sheet '{sheet_name}' not found in document {document_id}. "
+                f"Available sheets: {', '.join(available_sheets)}",
+                None,
+            )
+        return (
+            f"Error: document {document_id} has no spreadsheet sheets indexed.",
+            None,
+        )
+
+    agg_result = spreadsheet_aggregator.aggregate(
+        rows=dataset.rows,
+        columns=dataset.columns,
+        operation=operation,
+        column=column,
+        group_by=group_by,
+        filters=filters,
+        max_groups=settings.NEXUSRAG_AGGREGATION_MAX_GROUPS,
+    )
+
+    text = _format_aggregation_result(
+        sheet_name=sheet_name,
+        operation=operation,
+        column=column,
+        group_by=group_by,
+        agg_result=agg_result,
+        truncated=dataset.truncated,
+        truncated_at_row=dataset.truncated_at_row,
+    )
+
+    cid = _generate_citation_id(existing_ids)
+    existing_ids.add(cid)
+    source = ChatSourceChunk(
+        index=cid,
+        chunk_id=f"dataset_{document_id}_{dataset.dataset_id}",
+        content=f"Aggregation over sheet '{sheet_name}': {text}",
+        document_id=document_id,
+        page_no=0,
+        heading_path=[sheet_name],
+        score=0.0,
+        source_type="dataset",
+    )
+
+    return f"Source [{cid}]:\n{text}", source
+
+
+def _format_aggregation_result(
+    sheet_name: str,
+    operation: str,
+    column: Optional[str],
+    group_by: Optional[str],
+    agg_result: dict,
+    truncated: bool,
+    truncated_at_row: int,
+) -> str:
+    """Format an aggregate() result dict into short human-readable text."""
+    from app.core.config import settings as _settings
+
+    if "error" in agg_result:
+        return f"Aggregation error on sheet '{sheet_name}': {agg_result['error']}"
+
+    caveat = ""
+    if truncated:
+        caveat = (
+            f"\nLưu ý: dữ liệu đã bị cắt ở dòng {truncated_at_row} do vượt giới hạn, "
+            f"kết quả có thể không đầy đủ."
+        )
+
+    target = column or "rows"
+
+    if group_by:
+        groups = agg_result.get("groups", {})
+        matched = agg_result.get("matched_row_count", 0)
+        lines = [
+            f"{operation} of '{target}' on sheet '{sheet_name}', grouped by '{group_by}' "
+            f"({matched} matching rows):",
+            "",
+            f"| {group_by} | {operation}({target}) |",
+            "| --- | --- |",
+        ]
+        for key, value in groups.items():
+            lines.append(f"| {key} | {value} |")
+        if agg_result.get("truncated_groups"):
+            lines.append(
+                f"\n(Only the top {_settings.NEXUSRAG_AGGREGATION_MAX_GROUPS} groups by row count are shown; more groups exist.)"
+            )
+        lines.append(caveat)
+        return "\n".join(lines).strip()
+
+    value = agg_result.get("result")
+    matched = agg_result.get("matched_row_count", 0)
+    return (
+        f"{operation} of '{target}' on sheet '{sheet_name}' = {value} "
+        f"({matched} matching rows).{caveat}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -666,6 +905,93 @@ async def agent_chat_stream(
                     ))
                     # Remove tool prompt from system prompt so the model
                     # answers with sources instead of calling the tool again.
+                    effective_system_prompt = system_prompt
+
+                yield {"event": "status", "data": {
+                    "step": "generating",
+                    "detail": "Generating answer..."
+                }}
+            elif fc_name == "aggregate_spreadsheet_data":
+                agg_document_id = fc_args.get("document_id")
+                agg_sheet_name = fc_args.get("sheet_name", "")
+                agg_operation = fc_args.get("operation", "")
+                agg_column = fc_args.get("column")
+                agg_group_by = fc_args.get("group_by")
+                agg_filters = fc_args.get("filters") or []
+
+                yield {"event": "status", "data": {
+                    "step": "calculating",
+                    "detail": f"Calculating {agg_operation} on {agg_sheet_name}..."
+                }}
+
+                try:
+                    agg_document_id = int(agg_document_id)
+                except (TypeError, ValueError):
+                    agg_document_id = 0
+
+                agg_text, agg_source = await _execute_aggregate_spreadsheet_data(
+                    workspace_id=workspace_id,
+                    document_id=agg_document_id,
+                    sheet_name=agg_sheet_name,
+                    operation=agg_operation,
+                    column=agg_column,
+                    group_by=agg_group_by,
+                    filters=agg_filters,
+                    db=db,
+                    existing_ids=existing_ids,
+                )
+                if agg_source is not None:
+                    all_sources.append(agg_source)
+                    yield {"event": "sources", "data": {
+                        "sources": [agg_source.model_dump()]
+                    }}
+
+                tool_result_content = (
+                    f"{agg_text}\n\n"
+                    "IMPORTANT: Use this EXACT computed result in your answer — do not "
+                    "recompute or second-guess it. Cite it with the source ID shown above.\n\n"
+                    f"Now answer the question: {message}"
+                )
+
+                if is_gemini:
+                    from google.genai import types as _gtypes
+
+                    raw_content = getattr(provider, "last_response_content", None)
+                    if raw_content:
+                        messages.append(LLMMessage(
+                            role="assistant",
+                            content="",
+                            _raw_provider_content=raw_content,
+                        ))
+                    else:
+                        messages.append(LLMMessage(
+                            role="assistant",
+                            content=f"[Called aggregate_spreadsheet_data(sheet_name=\"{agg_sheet_name}\", operation=\"{agg_operation}\")]",
+                        ))
+
+                    func_resp_parts = [_gtypes.Part.from_function_response(
+                        name="aggregate_spreadsheet_data",
+                        response={"result": tool_result_content},
+                    )]
+                    func_resp_content = _gtypes.Content(
+                        role="user",
+                        parts=func_resp_parts,
+                    )
+                    messages.append(LLMMessage(
+                        role="user",
+                        content="",
+                        _raw_provider_content=func_resp_content,
+                    ))
+                    effective_system_prompt = system_prompt
+                else:
+                    messages.append(LLMMessage(
+                        role="assistant",
+                        content=f"[Called aggregate_spreadsheet_data(sheet_name=\"{agg_sheet_name}\", operation=\"{agg_operation}\")]",
+                    ))
+                    messages.append(LLMMessage(
+                        role="user",
+                        content=tool_result_content,
+                    ))
                     effective_system_prompt = system_prompt
 
                 yield {"event": "status", "data": {

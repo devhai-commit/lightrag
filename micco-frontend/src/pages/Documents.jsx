@@ -512,7 +512,7 @@ export default function Documents() {
                                             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                                                 {dragActive ? 'Thả tệp vào đây' : 'Kéo thả tệp hoặc nhấp để chọn'}
                                             </p>
-                                            <p className="text-xs text-gray-400">PDF, DOCX, XLSX, PPTX, PNG, JPG, MD, ZIP — Tối đa 50MB</p>
+                                            <p className="text-xs text-gray-400">PDF, DOCX, XLSX, CSV, PPTX, PNG, JPG, MD, ZIP — Tối đa 50MB</p>
                                             <input
                                                 id="file-input-upload"
                                                 type="file"

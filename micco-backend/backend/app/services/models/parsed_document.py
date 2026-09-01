@@ -54,6 +54,26 @@ class EnrichedChunk:
 
 
 @dataclass
+class DatasetColumn:
+    """A typed column of a spreadsheet sheet dataset."""
+    name: str
+    col_type: str  # "numeric" | "percentage" | "date" | "text" | "unknown"
+    unit: str = ""  # "VND", "%", ""
+
+
+@dataclass
+class SheetDataset:
+    """Cleaned, typed row data extracted from one sheet of a spreadsheet."""
+    document_id: int
+    sheet_name: str
+    columns: list[DatasetColumn] = field(default_factory=list)
+    row_count: int = 0  # true row count before truncation
+    rows: list[dict] = field(default_factory=list)  # JSON-native values, possibly truncated
+    truncated: bool = False
+    truncated_at_row: int = 0
+
+
+@dataclass
 class ParsedDocument:
     """Result of parsing a document with Docling."""
     document_id: int
@@ -64,6 +84,7 @@ class ParsedDocument:
     images: list[ExtractedImage] = field(default_factory=list)
     tables: list[ExtractedTable] = field(default_factory=list)
     tables_count: int = 0
+    datasets: list[SheetDataset] = field(default_factory=list)
 
 
 @dataclass
