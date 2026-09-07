@@ -6,7 +6,7 @@ description: Phát triển frontend code trong micco-frontend
 
 ### Working Directory
 ```
-/home/kms/micco/micco-frontend
+micco-frontend
 ```
 
 ### Development Steps
@@ -19,15 +19,14 @@ description: Phát triển frontend code trong micco-frontend
 2. **Component Development**
    ```
    1. Create/update component
-   2. Add TypeScript types
-   3. Add error handling
-   4. Add loading states
-   5. Test manually
+   2. Add error handling
+   3. Add loading states
+   4. Test manually (`/e2e-test` cho luồng có UI)
    ```
 
 3. **Code Standards**
    - Functional components + hooks
-   - TypeScript strict mode
+   - Plain JS/JSX (project KHÔNG dùng TypeScript)
    - Tailwind CSS classes
    - camelCase naming
 
@@ -104,30 +103,16 @@ export const apiService = {
 
 ### Commands
 ```bash
-# Run dev server
-cd /home/kms/micco/micco-frontend && npm run dev
-
-# Build
-cd /home/kms/micco/micco-frontend && npm run build
-
-# Lint
-cd /home/kms/micco/micco-frontend && npm run lint
-
-# Type check
-cd /home/kms/micco/micco-frontend && npm run type-check
+cd micco-frontend
+npm run dev      # dev server, port 5174
+npm run build
+npm run lint
 ```
 
 ### Testing
-```bash
-# Unit tests
-cd /home/kms/micco/micco-frontend && npm run test
-
-# With coverage
-cd /home/kms/micco/micco-frontend && npm run test:coverage
-
-# E2E tests
-cd /home/kms/micco/micco-frontend && npm run test:e2e
-```
+Project frontend chưa có test runner cấu hình (không có Jest/Vitest, không TypeScript).
+Xác minh bằng cách chạy `/e2e-test` (Playwright thật hoặc thao tác trình duyệt trực tiếp) thay vì
+`npm run test`.
 
 ### UI Guidelines
 
@@ -153,7 +138,6 @@ cd /home/kms/micco/micco-frontend && npm run test:e2e
 
 ### Checklist trước khi complete task
 - [ ] Component follows design system
-- [ ] TypeScript types defined
 - [ ] Error handling in place
 - [ ] Loading states shown
 - [ ] Responsive on all breakpoints

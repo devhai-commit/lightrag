@@ -1,6 +1,6 @@
 ---
 description: Run code quality checks on a directory
-allowed-tools: Read, Glob, Grep, Bash(npm:*), Bash(npx:*)
+allowed-tools: Read, Glob, Grep, Bash(npm:*), Bash(pytest:*), Bash(ruff:*)
 ---
 
 # Code Quality Review
@@ -10,22 +10,23 @@ Review code quality in: $ARGUMENTS
 ## Instructions
 
 1. **Identify files to review**:
-   - Find all `.ts` and `.tsx` files in the directory
-   - Exclude test files and generated files
+   - Backend (`micco-backend/backend`): `.py` files, exclude tests/migrations
+   - Frontend (`micco-frontend/src`): `.jsx`/`.js` files, exclude generated files
 
 2. **Run automated checks**:
    ```bash
-   npm run lint -- $ARGUMENTS
-   npm run typecheck
+   # Frontend
+   cd micco-frontend && npm run lint
+   # Backend
+   cd micco-backend/backend && pytest tests/ -x --tb=short
    ```
 
 3. **Manual review checklist**:
-   - [ ] No TypeScript `any` types
-   - [ ] Proper error handling
-   - [ ] Loading states handled correctly
-   - [ ] Empty states for lists
-   - [ ] Mutations have onError handlers
-   - [ ] Buttons disabled during async operations
+   - Type hints on backend async functions, Pydantic v2 schemas for all endpoints
+   - Proper error handling (no silent `except: pass`)
+   - Loading states handled correctly (frontend)
+   - Empty states for lists (frontend)
+   - Buttons disabled during async operations (frontend)
 
 4. **Report findings** organized by severity:
    - Critical (must fix)
