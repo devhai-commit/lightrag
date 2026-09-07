@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 DataT = TypeVar("DataT")
 
@@ -74,3 +74,45 @@ class BusinessDocumentSummary(BaseModel):
     page_count: int = 0
     chunk_count: int = 0
     created_at: datetime | None = None
+
+
+# ─── Portal chat ───────────────────────────────────────────────────
+# Customer-facing. The request is minimal on purpose: extra="forbid" so a
+# client that tries to pass workspace_id, document_ids, mode or history gets a
+# 422 instead of having it silently ignored. Everything that decides what the
+# answer may be grounded in is read on the server.
+
+
+class BusinessChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(..., min_length=1, max_length=2000)
+
+
+class BusinessChatSource(BaseModel):
+    """A citation as a customer sees it: a label and a page, nothing else.
+
+    No document id, no chunk text, no stored file path. Reading history back
+    through this model is what guarantees a row written elsewhere cannot leak
+    extra fields.
+    """
+
+    label: str
+    page_no: int = 0
+
+
+class BusinessChatMessage(BaseModel):
+    message_id: str
+    role: str
+    content: str
+    sources: list[BusinessChatSource] = Field(default_factory=list)
+    created_at: datetime | None = None
+
+
+class BusinessChatHistoryData(BaseModel):
+    messages: list[BusinessChatMessage] = Field(default_factory=list)
+    total: int = 0
+
+
+class BusinessChatCleared(BaseModel):
+    deleted: int = 0

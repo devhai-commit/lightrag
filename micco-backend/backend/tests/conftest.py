@@ -28,6 +28,7 @@ from app.core.security import BUSINESS_ROLE, create_access_token, hash_password
 from app.models.document import Document, DocumentStatus
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
+from app.services.llm.types import StreamChunk
 
 DEFAULT_PASSWORD = "secret123"
 
@@ -152,6 +153,53 @@ async def client(test_app: FastAPI) -> AsyncClient:
         transport=ASGITransport(app=test_app), base_url="http://test"
     ) as async_client:
         yield async_client
+
+
+class FakeLLMProvider:
+    """A stand-in for an LLMProvider that never leaves the process.
+
+    External APIs are mocked in every test per .claude/rules/testing.md.
+    Stage output with ``.chunks`` (StreamChunk instances, so a test can stage a
+    "thinking" chunk and assert it is not forwarded), make it fail with
+    ``.raises``, and inspect what was sent via ``.calls``.
+    """
+
+    _model = "fake-model"
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.raises: Exception | None = None
+        self.chunks: list[StreamChunk] = [
+            StreamChunk(type="text", text="Micco cung cấp "),
+            StreamChunk(type="text", text="thuốc nổ công nghiệp."),
+        ]
+
+    async def astream(self, messages, **kwargs):
+        self.calls.append({"messages": messages, **kwargs})
+        if self.raises is not None:
+            raise self.raises
+        for chunk in self.chunks:
+            yield chunk
+
+    @property
+    def last_call(self) -> dict:
+        assert self.calls, "the LLM provider was never called"
+        return self.calls[-1]
+
+
+@pytest.fixture
+def mock_llm_provider(monkeypatch) -> FakeLLMProvider:
+    """Replace the provider the business chat streams from.
+
+    Patches the name inside app.services.business_chat rather than the factory
+    in app.services.llm, because get_llm_provider is lru_cached and imported by
+    value at module load.
+    """
+    from app.services import business_chat
+
+    provider = FakeLLMProvider()
+    monkeypatch.setattr(business_chat, "get_llm_provider", lambda: provider)
+    return provider
 
 
 @pytest.fixture
