@@ -3,6 +3,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Landing from './pages/Landing';
 import AuthPage from './pages/AuthPage';
+import BusinessRegisterPage from './pages/BusinessRegisterPage';
 import Dashboard from './pages/Dashboard';
 import Documents from './pages/Documents';
 import DocumentView from './pages/DocumentView';
@@ -63,6 +64,7 @@ function App() {
             <Route element={<PublicOnlyRoute />}>
               <Route path="/login" element={<AuthPage />} />
               <Route path="/register" element={<AuthPage />} />
+              <Route path="/register-business" element={<BusinessRegisterPage />} />
             </Route>
 
             {/* Protected: redirect to /login if not authenticated */}

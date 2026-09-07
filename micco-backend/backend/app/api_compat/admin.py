@@ -16,6 +16,7 @@ from app.schemas.compat import (
     AdminUpdateUserRequest,
     AdminUserResponse,
     AdminListUsersResponse,
+    AdminApproveBusinessRequest,
     DepartmentCreateRequest,
     DepartmentUpdateRequest,
     DepartmentResponse,
@@ -23,7 +24,7 @@ from app.schemas.compat import (
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-ALLOWED_ROLES = {"Admin", "Trưởng phòng", "Nhân viên", "Giám đốc", "Phó giám đốc"}
+ALLOWED_ROLES = {"Admin", "Trưởng phòng", "Nhân viên", "Giám đốc", "Phó giám đốc", "Doanh nghiệp"}
 DIRECTOR_ROLES = {"Giám đốc", "Phó giám đốc"}
 
 
@@ -244,6 +245,7 @@ async def list_users(
                 department_name=u.department.name if u.department else None,
                 avatar=u.avatar,
                 created_at=u.created_at,
+                approval_status=u.approval_status,
             )
             for u in users
         ],
@@ -331,6 +333,38 @@ async def update_user(
     await db.refresh(user)
 
     return {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
+
+
+@router.put("/users/{user_id}/approval", response_model=AdminUserResponse)
+async def approve_business_user(
+    user_id: int,
+    req: AdminApproveBusinessRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(_require_admin),
+):
+    """Approve or reject an external business account (role == 'Doanh nghiệp')."""
+    result = await db.execute(select(User).options(selectinload(User.department)).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Người dùng không tồn tại")
+    if user.role != "Doanh nghiệp":
+        raise HTTPException(status_code=400, detail="Chỉ áp dụng cho tài khoản Doanh nghiệp")
+
+    user.approval_status = req.approval_status
+    await db.commit()
+    await db.refresh(user)
+
+    return AdminUserResponse(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=user.role,
+        department_id=user.department_id,
+        department_name=user.department.name if user.department else None,
+        avatar=user.avatar,
+        created_at=user.created_at,
+        approval_status=user.approval_status,
+    )
 
 
 @router.delete("/users/{user_id}", status_code=204)

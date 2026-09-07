@@ -21,6 +21,8 @@ from app.models.user import User
 from app.schemas.compat import (
     DepartmentResponse,
     RegisterRequest,
+    BusinessRegisterRequest,
+    BusinessRegisterResponse,
     LoginRequest,
     TokenResponse,
     UserResponse,
@@ -87,6 +89,50 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=token)
 
 
+@router.post("/register-business", response_model=BusinessRegisterResponse, status_code=status.HTTP_201_CREATED)
+async def register_business(req: BusinessRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Self-service registration for external businesses. Account starts as
+    'pending' and cannot log in until an Admin approves it (see /login gate)."""
+    existing = await db.execute(select(User).where(User.email == req.email))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.",
+        )
+
+    company_name = req.company_name.strip()
+    contact_name = req.contact_name.strip()
+    phone = req.phone.strip()
+
+    if len(company_name) < 2:
+        raise HTTPException(status_code=400, detail="Tên công ty phải có ít nhất 2 ký tự")
+    if len(contact_name) < 2:
+        raise HTTPException(status_code=400, detail="Tên người liên hệ phải có ít nhất 2 ký tự")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Mật khẩu phải có ít nhất 6 ký tự")
+    if not phone or not phone.replace(" ", "").replace("+", "").isdigit() or not (9 <= len(phone.replace(" ", "")) <= 11):
+        raise HTTPException(status_code=400, detail="Số điện thoại không hợp lệ")
+
+    user = User(
+        name=contact_name,
+        email=req.email,
+        hashed_password=hash_password(req.password),
+        role="Doanh nghiệp",
+        department_id=None,
+        company_name=company_name,
+        tax_code=req.tax_code,
+        phone=phone,
+        industry=req.industry,
+        approval_status="pending",
+    )
+    db.add(user)
+    await db.commit()
+
+    return BusinessRegisterResponse(
+        message="Đăng ký thành công, đội ngũ Micco sẽ liên hệ và duyệt tài khoản trong thời gian sớm nhất.",
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == req.email))
@@ -96,6 +142,12 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+
+    if user.role == "Doanh nghiệp":
+        if user.approval_status == "pending":
+            raise HTTPException(status_code=403, detail="Tài khoản đang chờ duyệt. Vui lòng quay lại sau.")
+        if user.approval_status == "rejected":
+            raise HTTPException(status_code=403, detail="Tài khoản không được duyệt. Liên hệ Micco để biết thêm chi tiết.")
 
     token = create_access_token(data={"sub": user.id})
     return TokenResponse(access_token=token)

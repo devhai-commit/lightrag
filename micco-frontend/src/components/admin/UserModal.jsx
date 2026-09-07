@@ -4,7 +4,7 @@ import { resolveApiBase } from '../../utils/apiBase';
 
 const BASE_ROLES = ['Admin', 'Trưởng phòng', 'Nhân viên'];
 const DIRECTOR_ROLES = ['Giám đốc', 'Phó giám đốc'];
-const ROLES = ['Tất cả', ...BASE_ROLES, ...DIRECTOR_ROLES];
+const ROLES = ['Tất cả', ...BASE_ROLES, ...DIRECTOR_ROLES, 'Doanh nghiệp'];
 const API_BASE = resolveApiBase() + '/api';
 
 export { ROLES };
