@@ -25,6 +25,8 @@ from app.core.business_deps import BUSINESS_TOKEN_SCOPE
 from app.core.database import Base
 from app.core.deps import get_db
 from app.core.security import BUSINESS_ROLE, create_access_token, hash_password
+from app.models.document import Document, DocumentStatus
+from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
 
 DEFAULT_PASSWORD = "secret123"
@@ -58,9 +60,25 @@ async def _ensure_database_exists(url: str) -> None:
 
 
 async def _create_schema(url: str) -> None:
+    """Rebuild the test schema from the models.
+
+    Dropped and recreated rather than only created, because create_all does not
+    add columns to tables that already exist — a model change would otherwise
+    leave a stale test database behind and fail in a way that looks like a bug
+    in the code under test.
+    """
+    db_name = urlparse(url).path.lstrip("/")
+    if not db_name.endswith("_test"):
+        pytest.exit(
+            f"Refusing to rebuild schema in {db_name!r}: a test database name "
+            "must end with '_test'. Check TEST_DATABASE_URL.",
+            returncode=1,
+        )
+
     engine = create_async_engine(url)
     try:
         async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
     finally:
         await engine.dispose()
@@ -165,9 +183,73 @@ def make_user(test_db: AsyncSession):
     return _make
 
 
+@pytest.fixture
+def make_workspace(test_db: AsyncSession):
+    """Factory for knowledge bases (workspaces)."""
+
+    async def _make(
+        *,
+        name: str = "Workspace Test",
+        visibility: str = "department",
+        audience: str = "internal",
+        **columns,
+    ) -> KnowledgeBase:
+        workspace = KnowledgeBase(
+            name=name, visibility=visibility, audience=audience, **columns
+        )
+        test_db.add(workspace)
+        await test_db.commit()
+        await test_db.refresh(workspace)
+        return workspace
+
+    return _make
+
+
+@pytest.fixture
+def make_document(test_db: AsyncSession):
+    """Factory for documents.
+
+    Defaults to the state a document must be in to be publishable (INDEXED +
+    approved) but unpublished, so each test opts into exactly the one
+    disqualifying condition it is about.
+    """
+
+    async def _make(
+        *,
+        workspace_id: int,
+        original_filename: str = "Bang gia san pham.pdf",
+        status: DocumentStatus = DocumentStatus.INDEXED,
+        approval_status: str = "approved",
+        is_business_visible: bool = False,
+        **columns,
+    ) -> Document:
+        document = Document(
+            workspace_id=workspace_id,
+            filename=f"stored_{original_filename}",
+            original_filename=original_filename,
+            file_type="pdf",
+            file_size=1024,
+            status=status,
+            approval_status=approval_status,
+            is_business_visible=is_business_visible,
+            **columns,
+        )
+        test_db.add(document)
+        await test_db.commit()
+        await test_db.refresh(document)
+        return document
+
+    return _make
+
+
 @pytest_asyncio.fixture
 async def internal_user(make_user) -> User:
     return await make_user(email="employee@example.test", role="Nhân viên", name="Nhân Viên Test")
+
+
+@pytest_asyncio.fixture
+async def admin_user(make_user) -> User:
+    return await make_user(email="admin@example.test", role="Admin", name="Admin Test")
 
 
 @pytest_asyncio.fixture
@@ -205,4 +287,10 @@ async def internal_client(client: AsyncClient, internal_user: User) -> AsyncClie
 @pytest_asyncio.fixture
 async def business_client(client: AsyncClient, business_user: User) -> AsyncClient:
     client.headers.update(bearer(business_token(business_user)))
+    return client
+
+
+@pytest_asyncio.fixture
+async def admin_client(client: AsyncClient, admin_user: User) -> AsyncClient:
+    client.headers.update(bearer(internal_token(admin_user)))
     return client

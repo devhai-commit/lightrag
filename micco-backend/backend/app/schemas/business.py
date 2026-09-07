@@ -5,7 +5,8 @@ This surface follows the response envelope documented in
 """
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from datetime import datetime
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -37,3 +38,39 @@ class BusinessLoginData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: BusinessProfile
+
+
+# ─── Admin: publishing content to the portal ───────────────────────
+# These are staff-only (require_admin). They shape what the portal can serve,
+# so they live beside the customer schemas they govern.
+
+
+class WorkspaceAudienceRequest(BaseModel):
+    audience: Literal["internal", "business"]
+
+
+class BusinessWorkspaceSummary(BaseModel):
+    id: int
+    name: str
+    audience: str
+    document_count: int = 0
+    published_document_count: int = 0
+
+
+class DocumentPublishRequest(BaseModel):
+    is_business_visible: bool
+
+
+class BusinessDocumentSummary(BaseModel):
+    """A document in the business workspace, from the Admin's point of view."""
+
+    id: int
+    label: str
+    original_filename: str
+    status: str
+    approval_status: str
+    is_business_visible: bool
+    is_publishable: bool
+    page_count: int = 0
+    chunk_count: int = 0
+    created_at: datetime | None = None

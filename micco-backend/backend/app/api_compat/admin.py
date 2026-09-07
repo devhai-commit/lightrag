@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import get_db
-from app.core.security import get_current_user, hash_password
+from app.core.security import hash_password, require_admin
 from app.models.department import Department
 from app.models.user import User
 from app.models.document import Document
@@ -34,12 +34,6 @@ def _fmt_storage(total_bytes: int) -> str:
     if total_bytes >= 1 << 20:
         return f"{total_bytes / (1 << 20):.1f} MB"
     return f"{total_bytes / 1024:.1f} KB"
-
-
-async def _require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
 
 
 async def _get_department(db: AsyncSession, department_id: int | None) -> Department | None:
@@ -84,7 +78,7 @@ def _validate_role_by_department(role: str, department: Department | None):
 @router.get("/departments", response_model=list[DepartmentResponse])
 async def list_departments(
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     result = await db.execute(
         select(Department)
@@ -108,7 +102,7 @@ async def list_departments(
 async def create_department(
     req: DepartmentCreateRequest,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     name = req.name.strip()
     if not name:
@@ -137,7 +131,7 @@ async def update_department(
     dept_id: int,
     req: DepartmentUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     result = await db.execute(select(Department).where(Department.id == dept_id))
     dept = result.scalar_one_or_none()
@@ -175,7 +169,7 @@ async def update_department(
 async def delete_department(
     dept_id: int,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     result = await db.execute(select(Department).where(Department.id == dept_id))
     dept = result.scalar_one_or_none()
@@ -190,7 +184,7 @@ async def delete_department(
 @router.get("/stats")
 async def admin_stats(
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     """Return admin dashboard statistics."""
     total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
@@ -219,7 +213,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     stmt = select(User).options(selectinload(User.department))
 
@@ -246,7 +240,7 @@ async def list_users(
 async def create_user(
     req: AdminCreateUserRequest,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     """Admin creates a new user account."""
     existing = await db.execute(select(User).where(User.email == req.email))
@@ -279,7 +273,7 @@ async def update_user(
     user_id: int,
     req: AdminUpdateUserRequest,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     """Admin updates an existing user."""
     result = await db.execute(select(User).where(User.id == user_id))
@@ -327,7 +321,7 @@ async def approve_business_user(
     user_id: int,
     req: AdminApproveBusinessRequest,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     """Approve or reject an external business account (role == 'Doanh nghiệp')."""
     result = await db.execute(select(User).options(selectinload(User.department)).where(User.id == user_id))
@@ -348,7 +342,7 @@ async def approve_business_user(
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -366,7 +360,7 @@ async def list_chat_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _admin: User = Depends(_require_admin),
+    _admin: User = Depends(require_admin),
 ):
     stmt = select(SystemChatLog)
 

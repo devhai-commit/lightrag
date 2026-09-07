@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, DateTime, Integer, Text, Enum, Boolean, JSON
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Text, Enum, Boolean, JSON, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 import enum
@@ -45,6 +45,14 @@ class Document(Base):
     # - "internal": legacy — treated same as "department"
     approval_status: Mapped[str] = mapped_column(String(20), default="pending") # "pending", "approved", "rejected"
     approval_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Per-document opt-in for the external B2B portal. Never inferred from the
+    # workspace: a file landing in the business workspace stays unpublished
+    # until an Admin explicitly publishes it. Read only by
+    # app.services.business_rag.get_business_document_ids.
+    is_business_visible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     # NexusRAG fields
     markdown_content: Mapped[str | None] = mapped_column(Text, nullable=True)

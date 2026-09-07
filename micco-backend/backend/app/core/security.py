@@ -117,3 +117,19 @@ async def get_current_user(
     _reject_business_principal(user)
     return user
 
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Admin-only dependency, shared by the compat admin API and /api/v1.
+
+    Lives here rather than in app.core.deps because that module is imported by
+    this one (get_db), and the reverse import would be circular.
+
+    Business accounts never reach the role check: get_current_user rejects them
+    first.
+    """
+    if current_user.role != "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return current_user
+
