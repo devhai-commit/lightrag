@@ -1,24 +1,23 @@
-# Frontend Rules (Next.js)
+# Frontend Rules (React + Vite)
 
-## Stack
-- Next.js 14+ App Router
-- TypeScript strict mode
-- Tailwind CSS
-- shadcn/ui components
-- Tanstack Query cho data fetching
-
-## Chat UI
-- Streaming: dùng EventSource hoặc fetch với ReadableStream
-- Message format: {role: "user"|"assistant", content: string, sources?: Source[]}
-- Luôn show loading skeleton khi đang fetch
+## Stack thực tế
+- React 19 + Vite 7 (SPA, KHÔNG phải Next.js)
+- Plain JS/JSX (không dùng TypeScript trong project này)
+- Tailwind CSS 3 trực tiếp — KHÔNG dùng shadcn/ui
+- React Router v7, Tiptap (rich text), Recharts, react-force-graph-2d
 
 ## API Calls
-- Mọi call qua /api/ Next.js route handlers (không call FastAPI trực tiếp từ browser)
-- Error boundary cho mọi page
-- Toast notification cho errors
+- Gọi thẳng FastAPI qua `src/utils/api.js` (`ragFetch`/`ragFetchV2`) — KHÔNG có route handler trung gian như Next.js
+- Streaming chat: `readSSEStream()` (SSE/NDJSON parser) trong cùng file
+- Error boundary cho mọi page, toast notification cho lỗi
+
+## Chat UI
+- Message format: `{role: "user"|"assistant", content: string, sources?: Source[]}`
+- Luôn show loading skeleton khi đang fetch/stream
 
 ## File Upload
-- Drag & drop với react-dropzone
-- Chỉ accept: PDF, DOCX, TXT
+- Chỉ accept: PDF, DOCX, TXT — max 50MB (validate client-side)
 - Show progress bar khi upload
-- Max 50MB client-side validation
+
+## Reference
+Chi tiết cấu trúc component/page: xem CLAUDE.md và `micco-frontend/src/`.

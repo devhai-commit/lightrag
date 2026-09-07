@@ -459,7 +459,7 @@ function ChatMessage({ msg, onSourceClick, onViewGraphPath }) {
                 {isUser ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
             </div>
 
-            <div className={`max-w-[82%] space-y-1 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+            <div className={`max-w-[82%] min-w-0 space-y-1 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
 
                 {/* Reasoning steps — live ticker while streaming */}
                 {!isUser && isStreaming && (
@@ -478,7 +478,7 @@ function ChatMessage({ msg, onSourceClick, onViewGraphPath }) {
 
                 {/* Bubble */}
                 {(msg.content || !isStreaming) && (
-                    <div className="flex flex-col gap-1 w-full relative">
+                    <div className="flex flex-col gap-1 w-full min-w-0 relative">
                         <div className={`rounded-2xl px-5 py-4 text-sm leading-relaxed ${
                             isUser
                                 ? 'bg-primary-600 text-white rounded-tr-sm'
@@ -487,8 +487,9 @@ function ChatMessage({ msg, onSourceClick, onViewGraphPath }) {
                             {isUser ? (
                                 <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
                             ) : (
-                                <div className="flex items-start gap-1.5">
-                                    <div 
+                                <div className="flex items-start gap-1.5 min-w-0">
+                                    <div
+                                        className="min-w-0 flex-1"
                                         onClick={(e) => {
                                             const btn = e.target.closest('button.citation');
                                             if (btn && onSourceClick) {
@@ -498,7 +499,7 @@ function ChatMessage({ msg, onSourceClick, onViewGraphPath }) {
                                                 if (src) onSourceClick(src);
                                             }
                                         }}
-                                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content, msg.sources) || '' }} 
+                                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content, msg.sources) || '' }}
                                     />
                                     {isStreaming && msg.content && (
                                         <span className="inline-block w-1 h-4 bg-primary-500 dark:bg-secondary-400 animate-pulse rounded-full ml-1 flex-shrink-0 mt-0.5" />

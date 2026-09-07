@@ -6,7 +6,7 @@ description: Phát triển backend code trong micco-backend
 
 ### Working Directory
 ```
-/home/kms/MiccoRAG-v3/micco-backend/backend
+micco-backend/backend
 ```
 
 ### Development Steps
@@ -80,13 +80,13 @@ async def process_something(data: str) -> Optional[str]:
 ### Commands
 ```bash
 # Run server
-cd /home/kms/MiccoRAG-v3/micco-backend/backend && uvicorn app.main:app --reload
+cd micco-backend/backend && uvicorn app.main:app --reload
 
 # Run tests
-cd /home/kms/MiccoRAG-v3/micco-backend/backend && pytest tests/ -x --tb=short
+cd micco-backend/backend && pytest tests/ -x --tb=short
 
 # With coverage
-cd /home/kms/MiccoRAG-v3/micco-backend/backend && pytest --cov=app --cov-report=html
+cd micco-backend/backend && pytest --cov=app --cov-report=html
 ```
 
 ### Testing

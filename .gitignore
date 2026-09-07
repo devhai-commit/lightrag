@@ -172,3 +172,4 @@ everything-claude-code/
 # Temporary scratch files
 paper_outline.txt
 tech_paper_outline.txt
+.claude/skills/*/.temp-execution-*.js

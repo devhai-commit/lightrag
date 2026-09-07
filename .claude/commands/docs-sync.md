@@ -11,13 +11,12 @@ Check if documentation matches the current code state.
 
 1. **Find recent code changes**:
    ```bash
-   git log --since="30 days ago" --name-only --pretty=format: -- "*.ts" "*.tsx" | sort -u
+   git log --since="30 days ago" --name-only --pretty=format: -- "*.py" "*.jsx" "*.js" | sort -u
    ```
 
 2. **Find related documentation**:
-   - Search `/docs/` for files mentioning changed code
-   - Check README files near changed code
-   - Look for TSDoc comments in changed files
+   - Search CLAUDE.md, README.md, `.claude/rules/*.md` for mentions of changed code
+   - Check docstrings (backend) and comments (frontend) in changed files
 
 3. **Verify documentation accuracy**:
    - Do code examples still work?

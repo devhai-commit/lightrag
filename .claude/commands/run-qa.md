@@ -9,16 +9,15 @@ description: Chạy QA tests và đảm bảo chất lượng đạt 95%
 #### Lần 1: Initial Test
 ```bash
 # Backend tests
-cd /home/kms/micco-backend/backend && pytest tests/ -v --tb=short
+cd micco-backend/backend && pytest tests/ -v --tb=short
 
-# Frontend tests
-cd /home/kms/micco/micco-frontend && npm run test
+# Frontend: chưa có test runner cấu hình — dùng /e2e-test qua trình duyệt
 ```
 
 #### Lần 2: Integration Test
 ```bash
 # Backend integration
-cd /home/kms/micco-backend/backend && pytest tests/integration/ -v
+cd micco-backend/backend && pytest tests/integration/ -v
 
 # Check API endpoints
 curl -s http://localhost:8000/api/v1/health
@@ -27,7 +26,7 @@ curl -s http://localhost:8000/api/v1/health
 #### Lần 3: RAG Pipeline Test
 ```bash
 # Full RAG pipeline
-cd /home/kms/micco-backend/backend && pytest tests/integration/test_rag_pipeline.py -v
+cd micco-backend/backend && pytest tests/integration/test_rag_pipeline.py -v
 ```
 
 #### Lần N: Fix & Retest
@@ -59,16 +58,13 @@ cd /home/kms/micco-backend/backend && pytest tests/integration/test_rag_pipeline
 
 ## Quick Commands
 
-### Single command - Run all tests
+### Single command - Run backend tests
 ```bash
-cd /home/kms/micco && \
-  echo "=== BACKEND TESTS ===" && \
-  cd backend && pytest tests/ -v --tb=line && \
-  echo "=== FRONTEND TESTS ===" && \
-  cd ../micco-frontend && npm run test
+cd micco-backend/backend && pytest tests/ -v --tb=line
 ```
+Frontend chưa có test runner — dùng `/e2e-test` sau khi backend pass.
 
 ### With coverage
 ```bash
-cd /home/kms/micco/backend && pytest tests/ --cov=app --cov-report=term-missing
+cd micco-backend/backend && pytest tests/ --cov=app --cov-report=term-missing
 ```

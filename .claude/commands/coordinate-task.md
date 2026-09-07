@@ -73,21 +73,14 @@ Tạo báo cáo hoàn thành:
 ...
 ```
 
-## Commands để spawn agents
+## Cách thực hiện từng bước
 
-### Backend Agent
-```bash
-# Sử dụng Agent tool với backend-dev
-Task: [mô tả]
-Working dir: /home/kms/micco-backend/backend
-```
-
-### Frontend Agent
-```bash
-# Sử dụng Agent tool với frontend-dev
-Task: [mô tả]
-Working dir: /home/kms/micco/micco-frontend
-```
+`/backend-dev`, `/frontend-dev`, `/qa-tester` là các slash command (workflow guide), KHÔNG phải
+subagent có thể spawn qua Agent tool. Để phối hợp:
+- Backend: tự thực hiện theo `/backend-dev` (working dir `micco-backend/backend`), hoặc dùng
+  Agent tool với prompt mô tả rõ task + dẫn nội dung `.claude/commands/backend-dev.md`.
+- Frontend: tương tự theo `/frontend-dev` (working dir `micco-frontend`).
+- QA: chạy `/run-qa` hoặc `/e2e-test` sau khi cả hai phần hoàn thành.
 
 ## Coordination Notes
 - Backend và Frontend phải agree về API contract trước khi implement

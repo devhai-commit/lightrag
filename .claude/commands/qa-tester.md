@@ -19,24 +19,22 @@ Chạy tests và đảm bảo chất lượng đạt 95% trước khi bàn giao.
 
 #### Backend Tests
 ```bash
-cd /home/kms/micco/backend && pytest tests/ -v --tb=short
+cd micco-backend/backend && pytest tests/ -v --tb=short
 ```
 
 #### Frontend Tests
-```bash
-cd /home/kms/micco/micco-frontend && npm run test
-```
+Chưa có test runner cấu hình cho frontend (không có Jest/Vitest). Dùng `/e2e-test` để kiểm thử
+qua trình duyệt thay vì `npm run test`.
 
 #### Full QA Pipeline
 ```bash
 # 1. Backend
-cd /home/kms/micco/backend && pytest tests/ -v
+cd micco-backend/backend && pytest tests/ -v
 
-# 2. Frontend
-cd /home/kms/micco/micco-frontend && npm run test
+# 2. Frontend (chưa có test runner — dùng /e2e-test)
 
 # 3. RAG Pipeline
-cd /home/kms/micco/backend && pytest tests/integration/test_rag_pipeline.py -v
+cd micco-backend/backend && pytest tests/integration/test_rag_pipeline.py -v
 ```
 
 ### Quality Criteria
