@@ -1,0 +1,279 @@
+/*
+ * business.css — design tokens for the external B2B portal.
+ *
+ * Scoped under .micco-portal so nothing here reaches the internal dashboard,
+ * which has its own blue/indigo system in index.css. The portal is deliberately
+ * a different object: warm paper ground, copper accent, a slab serif for
+ * display type over Inter for UI, hairline rules instead of card shadows.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&display=swap');
+
+.micco-portal {
+    --p-bg: #F4F1EC;
+    --p-surface: #FFFFFF;
+    --p-surface-sunk: #EDE8E0;
+    --p-ink: #1A1714;
+    --p-ink-soft: #4A423A;
+    --p-muted: #857A6E;
+    --p-accent: #B4531F;
+    --p-accent-hover: #94411A;
+    --p-accent-soft: #F7E8DD;
+    --p-line: #E0D8CD;
+    --p-line-strong: #C6BCAE;
+    --p-danger: #A32B1F;
+
+    --p-measure: 44rem;
+
+    --p-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --p-fast: 140ms;
+    --p-normal: 260ms;
+
+    color: var(--p-ink);
+    background-color: var(--p-bg);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Paper grain. Sits behind everything, never intercepts pointer events. */
+.p-grain::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.028;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.p-display {
+    font-family: 'Bitter', Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+/* Small-caps label. Carries the hierarchy that the dashboard gets from cards. */
+.p-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--p-muted);
+}
+
+/* ── Controls ─────────────────────────────────────────────────── */
+
+.p-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--p-accent);
+    color: #FFF;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid var(--p-accent);
+    border-radius: 2px;
+    transition: background-color var(--p-fast) var(--p-ease),
+        transform var(--p-fast) var(--p-ease);
+}
+
+.p-btn:hover:not(:disabled) {
+    background-color: var(--p-accent-hover);
+    border-color: var(--p-accent-hover);
+}
+
+.p-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.p-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.p-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--p-ink-soft);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    transition: background-color var(--p-fast) var(--p-ease),
+        border-color var(--p-fast) var(--p-ease), color var(--p-fast) var(--p-ease);
+}
+
+.p-btn-ghost:hover:not(:disabled) {
+    color: var(--p-accent);
+    border-color: var(--p-line-strong);
+    background-color: var(--p-surface);
+}
+
+.p-btn-ghost:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.p-field {
+    width: 100%;
+    padding: 0.8125rem 1rem;
+    color: var(--p-ink);
+    background-color: var(--p-surface);
+    border: 1px solid var(--p-line-strong);
+    border-radius: 2px;
+    font-size: 0.9375rem;
+    transition: border-color var(--p-fast) var(--p-ease),
+        box-shadow var(--p-fast) var(--p-ease);
+}
+
+.p-field::placeholder {
+    color: var(--p-muted);
+}
+
+.p-field:focus {
+    outline: none;
+    border-color: var(--p-accent);
+    box-shadow: 0 0 0 3px rgba(180, 83, 31, 0.12);
+}
+
+.micco-portal :focus-visible {
+    outline: 2px solid var(--p-accent);
+    outline-offset: 2px;
+}
+
+/* A suggested question. Reads as a pressable slip of paper, not a pill. */
+.p-suggestion {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--p-ink-soft);
+    background-color: var(--p-surface);
+    border: 1px solid var(--p-line);
+    border-left: 2px solid var(--p-line-strong);
+    border-radius: 2px;
+    transition: border-left-color var(--p-fast) var(--p-ease),
+        color var(--p-fast) var(--p-ease), transform var(--p-fast) var(--p-ease);
+}
+
+.p-suggestion:hover {
+    color: var(--p-ink);
+    border-left-color: var(--p-accent);
+    transform: translateX(2px);
+}
+
+/* ── Conversation ─────────────────────────────────────────────── */
+
+.p-turn-assistant {
+    border-left: 2px solid var(--p-accent-soft);
+    padding-left: 1.25rem;
+}
+
+.p-turn-user {
+    background-color: var(--p-accent-soft);
+    border-radius: 2px;
+    padding: 0.875rem 1.125rem;
+}
+
+/* One source per row. Must be block-level (flex, not inline-flex): the list
+   uses margin-based vertical spacing, which inline items ignore — they would
+   run together as "tr.10 02 EECS-...". */
+.p-source {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--p-ink-soft);
+}
+
+.p-source-index {
+    font-variant-numeric: tabular-nums;
+    color: var(--p-accent);
+    font-weight: 700;
+}
+
+/* Indeterminate hairline, shown while the server is retrieving. */
+.p-progress {
+    position: relative;
+    height: 1px;
+    overflow: hidden;
+    background-color: var(--p-line);
+}
+
+.p-progress::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 35%;
+    background-color: var(--p-accent);
+    animation: p-sweep 1.4s var(--p-ease) infinite;
+}
+
+@keyframes p-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(340%); }
+}
+
+/* ── Answer prose ─────────────────────────────────────────────── */
+/* renderMarkdown emits Tailwind classes tuned for the dashboard's small type;
+   these override the ones that would look cramped at reading size here. */
+
+.micco-portal .markdown-content {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--p-ink-soft);
+}
+
+.micco-portal .markdown-content p {
+    margin-bottom: 0.875rem;
+}
+
+.micco-portal .markdown-content p:last-child {
+    margin-bottom: 0;
+}
+
+.micco-portal .markdown-content strong {
+    color: var(--p-ink);
+    font-weight: 600;
+}
+
+.micco-portal .markdown-content h1,
+.micco-portal .markdown-content h2,
+.micco-portal .markdown-content h3 {
+    font-family: 'Bitter', Georgia, serif;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: -0.01em;
+    color: var(--p-ink);
+}
+
+.micco-portal .markdown-content ul {
+    margin: 0.75rem 0;
+}
+
+.micco-portal .markdown-content li {
+    margin-bottom: 0.375rem;
+}
+
+.micco-portal .markdown-content table {
+    font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .micco-portal *,
+    .micco-portal *::before,
+    .micco-portal *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .p-progress::after {
+        width: 100%;
+    }
+}
