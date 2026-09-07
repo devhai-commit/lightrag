@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolveApiBase } from '../utils/apiBase';
@@ -495,6 +495,13 @@ function SignUpForm({ onRegister, isDark, toggleTheme, onToggle, mobile }) {
                     <GoogleIcon />
                     Đăng ký với Google
                 </button>
+
+                {/* Business registration CTA */}
+                <Link to="/register-business"
+                    className="w-full py-3 rounded-2xl font-semibold text-sm text-primary-600 dark:text-secondary-400 border-2 border-dashed border-primary-200 dark:border-secondary-400/30 hover:bg-primary-50 dark:hover:bg-secondary-400/10 transition-all duration-300 flex items-center justify-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Đăng ký cho Doanh nghiệp
+                </Link>
             </form>
 
             {/* Toggle (mobile only) */}

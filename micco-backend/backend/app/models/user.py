@@ -20,5 +20,13 @@ class User(Base):
     avatar: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # Business account fields (role == "Doanh nghiệp") — null/unused for internal roles
+    company_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tax_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # "pending" | "approved" | "rejected"; None = not applicable (internal roles)
+    approval_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     department: Mapped["Department | None"] = relationship(back_populates="users")
     knowledge_entries: Mapped[list["KnowledgeEntry"]] = relationship(back_populates="owner")

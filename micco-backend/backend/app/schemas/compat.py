@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel
 
 
@@ -9,6 +10,20 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     department_id: int | None = None
+
+
+class BusinessRegisterRequest(BaseModel):
+    company_name: str
+    contact_name: str
+    email: str
+    password: str
+    phone: str
+    tax_code: str | None = None
+    industry: str | None = None
+
+
+class BusinessRegisterResponse(BaseModel):
+    message: str
 
 
 class LoginRequest(BaseModel):
@@ -115,6 +130,11 @@ class AdminUserResponse(BaseModel):
     department_name: str | None = None
     avatar: str | None = None
     created_at: datetime | None = None
+    approval_status: str | None = None
+
+
+class AdminApproveBusinessRequest(BaseModel):
+    approval_status: Literal["approved", "rejected"]
 
 
 class AdminListUsersResponse(BaseModel):

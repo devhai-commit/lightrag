@@ -127,6 +127,23 @@ export default function Admin() {
         } catch { showToast('Có lỗi xảy ra', 'error'); }
     };
 
+    const handleApprove = async (targetUser, approval_status) => {
+        try {
+            const res = await authFetch(`/api/admin/users/${targetUser.id}/approval`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ approval_status }),
+            });
+            if (res.ok) {
+                await fetchUsers();
+                showToast(approval_status === 'approved' ? `Đã duyệt ${targetUser.company_name || targetUser.name}` : `Đã từ chối ${targetUser.company_name || targetUser.name}`);
+            } else {
+                const err = await res.json();
+                showToast(err.detail || 'Thao tác thất bại', 'error');
+            }
+        } catch { showToast('Có lỗi xảy ra', 'error'); }
+    };
+
     const handleDelete = async (id) => {
         try {
             const res = await authFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
@@ -306,6 +323,7 @@ export default function Admin() {
                     onOpenMenu={setOpenMenu}
                     onEdit={(u) => { setEditUser(u); setAddModal(true); }}
                     onDelete={setDeleteUser}
+                    onApprove={handleApprove}
                     isActive={isActive}
                 />
             ) : activeTab === 'logs' ? (

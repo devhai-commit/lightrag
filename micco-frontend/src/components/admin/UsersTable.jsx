@@ -30,16 +30,23 @@ const ROLE_COLORS = {
     'Giám đốc': 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
     'Phó giám đốc': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
     'Nhân viên': 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
+    'Doanh nghiệp': 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
 };
 export const PAGE_SIZE = 10;
 
 // ── Component ──────────────────────────────────────────────────────────────────
+const APPROVAL_LABELS = {
+    pending: { label: 'Chờ duyệt', className: 'text-amber-600 dark:text-amber-400', dot: 'bg-amber-500' },
+    approved: { label: 'Đã duyệt', className: 'text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500' },
+    rejected: { label: 'Từ chối', className: 'text-red-500 dark:text-red-400', dot: 'bg-red-500' },
+};
+
 export default function UsersTable({
     users, total, page, totalPages,
     search, roleFilter, openMenu, currentUserId,
     onSearchChange, onRoleFilterChange, onExport,
     onPageChange, onOpenMenu,
-    onEdit, onDelete,
+    onEdit, onDelete, onApprove,
     isActive,
 }) {
     const startRow = (page - 1) * PAGE_SIZE + 1;
@@ -139,10 +146,35 @@ export default function UsersTable({
                                     </td>
                                     {/* Status */}
                                     <td className="px-6 py-4">
-                                        <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                                            {active ? 'Hoạt động' : 'Không hoạt động'}
-                                        </span>
+                                        {u.role === 'Doanh nghiệp' ? (
+                                            <div className="flex flex-col gap-1.5 items-start">
+                                                <span className={`flex items-center gap-1.5 text-xs font-semibold ${(APPROVAL_LABELS[u.approval_status] || APPROVAL_LABELS.pending).className}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${(APPROVAL_LABELS[u.approval_status] || APPROVAL_LABELS.pending).dot}`} />
+                                                    {(APPROVAL_LABELS[u.approval_status] || APPROVAL_LABELS.pending).label}
+                                                </span>
+                                                {u.approval_status !== 'approved' && (
+                                                    <button
+                                                        onClick={() => onApprove(u, 'approved')}
+                                                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 hover:underline"
+                                                    >
+                                                        Duyệt
+                                                    </button>
+                                                )}
+                                                {u.approval_status !== 'rejected' && (
+                                                    <button
+                                                        onClick={() => onApprove(u, 'rejected')}
+                                                        className="text-xs font-semibold text-red-500 hover:text-red-600 dark:text-red-400 hover:underline"
+                                                    >
+                                                        Từ chối
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                                {active ? 'Hoạt động' : 'Không hoạt động'}
+                                            </span>
+                                        )}
                                     </td>
                                     {/* Joined */}
                                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">

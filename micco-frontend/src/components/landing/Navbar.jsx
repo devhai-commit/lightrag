@@ -57,6 +57,12 @@ export default function Navbar() {
                             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </button>
                         <Link
+                            to="/register-business"
+                            className="btn-secondary text-sm !px-5 !py-2.5"
+                        >
+                            Dành cho Doanh nghiệp
+                        </Link>
+                        <Link
                             to="/dashboard"
                             className="btn-primary text-sm !px-5 !py-2.5"
                         >
@@ -96,6 +102,9 @@ export default function Navbar() {
     Bắt đầu ngay
                             </Link>
                         </div>
+                        <Link to="/register-business" className="block text-center text-sm font-semibold text-primary-600 dark:text-secondary-400 hover:underline pt-1" onClick={() => setMobileOpen(false)}>
+                            Dành cho Doanh nghiệp
+                        </Link>
                     </div>
                 </div>
             )}
