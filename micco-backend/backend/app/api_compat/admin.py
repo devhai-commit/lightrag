@@ -235,20 +235,7 @@ async def list_users(
     users = (await db.execute(stmt)).scalars().all()
 
     return AdminListUsersResponse(
-        users=[
-            AdminUserResponse(
-                id=u.id,
-                name=u.name,
-                email=u.email,
-                role=u.role,
-                department_id=u.department_id,
-                department_name=u.department.name if u.department else None,
-                avatar=u.avatar,
-                created_at=u.created_at,
-                approval_status=u.approval_status,
-            )
-            for u in users
-        ],
+        users=[AdminUserResponse.from_user(u) for u in users],
         total=total,
         page=page,
         page_size=page_size,
@@ -354,17 +341,7 @@ async def approve_business_user(
     await db.commit()
     await db.refresh(user)
 
-    return AdminUserResponse(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        role=user.role,
-        department_id=user.department_id,
-        department_name=user.department.name if user.department else None,
-        avatar=user.avatar,
-        created_at=user.created_at,
-        approval_status=user.approval_status,
-    )
+    return AdminUserResponse.from_user(user)
 
 
 @router.delete("/users/{user_id}", status_code=204)

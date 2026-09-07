@@ -19,6 +19,12 @@ from app.models.user import User
 _BCRYPT_MAX = 72
 security = HTTPBearer()
 
+# External business principal. Accounts with this role are customers, not staff:
+# they are served only by /api/v1/business/* (see app.core.business_deps).
+BUSINESS_ROLE = "Doanh nghiệp"
+
+INTERNAL_ONLY_DETAIL = "Tài khoản doanh nghiệp không có quyền truy cập hệ thống nội bộ."
+
 
 def hash_password(password: str) -> str:
     max_len = settings.COMPAT_BCRYPT_MAX_BYTES or _BCRYPT_MAX
@@ -52,6 +58,19 @@ def decode_access_token(token: str) -> dict:
         )
 
 
+def _reject_business_principal(user: User) -> None:
+    """Internal endpoints are staff-only.
+
+    A business account has no department_id, and the internal document filter
+    compares department_id with `==`, which SQL renders as `IS NULL` — so
+    without this guard a business token reads every department-less document.
+    Enforced here rather than per-router so internal-only is the default for
+    every endpoint that depends on get_current_user, present and future.
+    """
+    if user.role == BUSINESS_ROLE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=INTERNAL_ONLY_DETAIL)
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
@@ -63,8 +82,9 @@ async def get_current_user(
         result = await db.execute(select(User).options(selectinload(User.department)).limit(1))
         user = result.scalar_one_or_none()
         if user:
+            _reject_business_principal(user)
             return user
-        
+
         # No users in DB — return a transient dummy Admin user
         return User(
             id=1,
@@ -94,5 +114,6 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 
+    _reject_business_principal(user)
     return user
 
