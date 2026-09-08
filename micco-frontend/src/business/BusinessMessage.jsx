@@ -8,6 +8,7 @@
  */
 import { AlertCircle, Building2 } from 'lucide-react';
 
+import BusinessPackageCards from './BusinessPackageCards';
 import { renderMarkdown } from '../utils/markdown';
 
 function SourceList({ sources }) {
@@ -79,6 +80,8 @@ export default function BusinessMessage({ message, isStreaming = false }) {
             )}
 
             {!isStreaming && <SourceList sources={message.sources} />}
+
+            {!isStreaming && <BusinessPackageCards packages={message.recommendations} />}
 
             {message.error && (
                 <p role="alert" className="mt-4 flex items-start gap-2 text-sm text-[var(--p-danger)]">

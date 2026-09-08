@@ -26,6 +26,7 @@ from app.core.database import Base
 from app.core.deps import get_db
 from app.core.security import BUSINESS_ROLE, create_access_token, hash_password
 from app.models.document import Document, DocumentStatus
+from app.models.business_package import BusinessPackage
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
 from app.services.llm.types import StreamChunk
@@ -286,6 +287,39 @@ def make_document(test_db: AsyncSession):
         await test_db.commit()
         await test_db.refresh(document)
         return document
+
+    return _make
+
+
+@pytest.fixture
+def make_package(test_db: AsyncSession):
+    """Factory for catalogue entries.
+
+    Defaults to active, because an inactive package never reaches the
+    catalogue at all — tests opt into that explicitly.
+    """
+
+    async def _make(
+        *,
+        name: str = "Dịch vụ nổ mìn trọn gói",
+        category: str = "Dịch vụ nổ mìn",
+        summary: str = "Micco đảm nhận toàn bộ công tác nổ mìn.",
+        is_active: bool = True,
+        sort_order: int = 0,
+        **columns,
+    ) -> BusinessPackage:
+        package = BusinessPackage(
+            name=name,
+            category=category,
+            summary=summary,
+            is_active=is_active,
+            sort_order=sort_order,
+            **columns,
+        )
+        test_db.add(package)
+        await test_db.commit()
+        await test_db.refresh(package)
+        return package
 
     return _make
 

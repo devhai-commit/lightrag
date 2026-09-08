@@ -94,6 +94,9 @@ async def get_business_chat_history(
             # Validated through BusinessChatSource, so a stored row can only
             # ever hand back a label and a page number.
             sources=row.sources or [],
+            # Same for the cards: re-validated on the way out, so the suggestion
+            # cards survive a reload without widening what a row can return.
+            recommendations=row.recommended_packages or [],
             created_at=row.created_at,
         )
         for row in rows

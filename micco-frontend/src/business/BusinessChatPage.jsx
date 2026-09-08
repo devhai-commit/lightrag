@@ -50,6 +50,7 @@ export default function BusinessChatPage() {
                         role: m.role,
                         content: m.content,
                         sources: m.sources || [],
+                        recommendations: m.recommendations || [],
                     })),
                 );
             })
@@ -90,8 +91,15 @@ export default function BusinessChatPage() {
         setSending(true);
         setMessages((current) => [
             ...current,
-            { id: nextId(), role: 'user', content: question, sources: [] },
-            { id: nextId(), role: 'assistant', content: '', sources: [], status: 'Đang gửi câu hỏi' },
+            { id: nextId(), role: 'user', content: question, sources: [], recommendations: [] },
+            {
+                id: nextId(),
+                role: 'assistant',
+                content: '',
+                sources: [],
+                recommendations: [],
+                status: 'Đang gửi câu hỏi',
+            },
         ]);
 
         await streamBusinessChat(question, {
@@ -101,9 +109,11 @@ export default function BusinessChatPage() {
                 content: last.content + chunk,
                 status: '',
             })),
+            onRecommendations: (packages) => updateLast(() => ({ recommendations: packages })),
             onComplete: (payload) => updateLast(() => ({
                 content: payload.answer,
                 sources: payload.sources || [],
+                recommendations: payload.recommendations || [],
                 status: '',
             })),
             onError: (error) => updateLast(() => ({ status: '', error: error.message })),

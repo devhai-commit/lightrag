@@ -38,4 +38,8 @@ class ChatMessage(Base):
     ratings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     agent_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
+    # Packages suggested on an assistant turn, so the cards survive a history
+    # reload instead of vanishing when the stream ends. Business portal only.
+    recommended_packages: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

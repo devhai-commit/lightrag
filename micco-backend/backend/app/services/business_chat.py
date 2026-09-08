@@ -34,7 +34,14 @@ from app.api.business_chat_prompt import (
 )
 from app.models.chat_message import ChatMessage
 from app.models.user import User
+from app.services.business_packages import (
+    build_catalog_digest,
+    get_active_packages,
+    resolve_recommendations,
+    to_card,
+)
 from app.services.business_rag import business_search, get_business_workspace
+from app.services.business_recommendation import RecommendationSentinelFilter
 from app.services.llm import get_llm_provider
 from app.services.llm.types import LLMMessage
 
@@ -121,6 +128,7 @@ async def _persist(
     role: str,
     content: str,
     sources: list[dict] | None = None,
+    recommended_packages: list[dict] | None = None,
 ) -> str:
     """Store one turn. Best-effort: a failure here must not kill the answer."""
     message_id = str(uuid.uuid4())
@@ -133,6 +141,7 @@ async def _persist(
                 role=role,
                 content=content,
                 sources=sources or None,
+                recommended_packages=recommended_packages or None,
             )
         )
         await db.commit()
@@ -206,18 +215,35 @@ async def stream_business_chat(
     yield ("sources", {"sources": sources})
     yield ("status", {"step": "generating", "detail": _STATUS_GENERATING})
 
-    system_prompt = build_business_system_prompt(retrieval.context)
+    # The catalogue rides along in the same prompt, so suggestions cost no
+    # extra LLM call. An empty catalogue leaves the contract out entirely.
+    packages = await _load_catalog(db)
+    system_prompt = build_business_system_prompt(
+        retrieval.context, build_catalog_digest(packages)
+    )
+
     provider = get_llm_provider()
+    sentinel = RecommendationSentinelFilter()
     parts: list[str] = []
     failed = False
 
     try:
         async for text in _stream_answer(provider, system_prompt, history, question):
-            parts.append(text)
-            yield ("delta", {"text": text})
+            # Filtered before it is ever yielded: the sentinel must not reach
+            # the screen even for one frame, and a chunk boundary can fall in
+            # the middle of it.
+            visible = sentinel.feed(text)
+            if visible:
+                parts.append(visible)
+                yield ("delta", {"text": visible})
     except Exception:
         logger.exception("business chat: LLM streaming failed")
         failed = True
+
+    trailing, suggested_ids = sentinel.finish()
+    if trailing:
+        parts.append(trailing)
+        yield ("delta", {"text": trailing})
 
     answer = "".join(parts).strip()
     _log_llm_call(provider, system_prompt, question, answer, started)
@@ -230,11 +256,39 @@ async def stream_business_chat(
         yield ("error", {"message": _ERROR_MESSAGE})
         return
 
-    message_id = await _persist(db, workspace.id, user.id, "assistant", answer, sources)
+    # Suggestions are an addition, never a precondition: an id the model made
+    # up is dropped here rather than looked up, and the answer stands either
+    # way.
+    cards = [to_card(p) for p in resolve_recommendations(suggested_ids, packages)]
+    if cards:
+        yield ("recommendations", {"packages": cards})
+
+    message_id = await _persist(
+        db, workspace.id, user.id, "assistant", answer, sources, cards
+    )
     yield (
         "complete",
-        {"message_id": message_id, "answer": answer, "sources": sources},
+        {
+            "message_id": message_id,
+            "answer": answer,
+            "sources": sources,
+            "recommendations": cards,
+        },
     )
+
+
+async def _load_catalog(db: AsyncSession):
+    """The active catalogue, or nothing.
+
+    Best-effort on purpose: the catalogue only enables suggestions, so a
+    failure reading it must degrade to "no suggestions" rather than break a
+    grounded answer the customer asked for.
+    """
+    try:
+        return await get_active_packages(db)
+    except Exception:
+        logger.exception("business chat: failed to load the package catalogue")
+        return []
 
 
 async def _stream_answer(

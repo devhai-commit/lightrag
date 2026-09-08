@@ -197,6 +197,17 @@
     font-weight: 700;
 }
 
+/* A suggested package. Sits on the surface rather than the paper ground so
+   it reads as an offer set apart from the answer, without becoming a shadowed
+   card like the internal dashboard uses. */
+.p-package {
+    padding: 1rem 1.125rem;
+    background-color: var(--p-surface);
+    border: 1px solid var(--p-line);
+    border-left: 2px solid var(--p-accent);
+    border-radius: 2px;
+}
+
 /* Indeterminate hairline, shown while the server is retrieving. */
 .p-progress {
     position: relative;

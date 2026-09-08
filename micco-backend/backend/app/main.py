@@ -230,4 +230,4 @@ _docling_data.mkdir(parents=True, exist_ok=True)
 app.mount("/static/doc-images", StaticFiles(directory=str(_docling_data)), name="static_doc_images")
 
 # Import models so SQLAlchemy registers them
-from app.models import knowledge_base, document, chat_message  # noqa: E402, F401
+from app.models import knowledge_base, document, chat_message, business_package  # noqa: E402, F401

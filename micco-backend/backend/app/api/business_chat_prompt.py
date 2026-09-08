@@ -15,6 +15,7 @@ told, because that field is edited for internal Q&A.
 from __future__ import annotations
 
 CONTEXT_HEADING = "## NGUỒN THAM KHẢO"
+CATALOG_HEADING = "## DANH MỤC GÓI CỦA MICCO"
 
 # The one answer allowed when the published documents do not cover the question.
 # Fixed text, so a customer never receives a guess dressed up as an answer.
@@ -45,7 +46,7 @@ Cách trả lời:
 
 BUSINESS_HARD_GUARDRAIL = f"""## QUY ĐỊNH BẮT BUỘC
 
-1. Chỉ trả lời bằng thông tin có trong phần "NGUỒN THAM KHẢO" ở trên. Không dùng kiến thức bên ngoài, không suy đoán, không tự bổ sung số liệu.
+1. Chỉ trả lời bằng thông tin có trong phần "NGUỒN THAM KHẢO" ở trên. Không dùng kiến thức bên ngoài, không suy đoán, không tự bổ sung số liệu. Danh mục gói (nếu có) chỉ dùng để gợi ý, không phải nguồn để khẳng định thông số, giá hay điều khoản.
 2. Nếu "NGUỒN THAM KHẢO" không có thông tin để trả lời, hãy trả lời đúng nguyên văn câu sau và không thêm gì khác:
    "{OUT_OF_SCOPE_ANSWER}"
 3. Không nhắc tên tệp, tên tài liệu, mã tài liệu, tên phòng ban, tên nhân sự hay tên hệ thống nội bộ của Micco. Khi cần dẫn nguồn, chỉ nói chung là "tài liệu Micco".
@@ -54,13 +55,36 @@ BUSINESS_HARD_GUARDRAIL = f"""## QUY ĐỊNH BẮT BUỘC
 6. Luôn trả lời bằng tiếng Việt."""
 
 
-def build_business_system_prompt(context: str) -> str:
+# Contract for in-answer package suggestions. Included only when the catalogue
+# has active rows, so an empty catalogue never teaches the model a syntax it
+# would then have nothing to fill in.
+#
+# The sentinel travels down the same stream as the prose, so it is stripped
+# before display by RecommendationSentinelFilter
+# (app/services/business_recommendation.py).
+SUGGESTION_CONTRACT = """Cách gợi ý gói:
+
+- Danh mục trên là danh sách gói Micco đang cung cấp. Bạn được nhắc tên và phân loại gói từ danh mục này khi gợi ý, nhưng **không** được dùng nó để khẳng định thông số, giá hay điều khoản: những thông tin đó chỉ được lấy từ "NGUỒN THAM KHẢO".
+- Khi nhu cầu của khách còn rộng hoặc chưa rõ, hãy trả lời như bình thường rồi **kết thúc câu trả lời** bằng đúng một dòng cuối theo mẫu:
+  [[GOI_Y: id1,id2,id3]]
+  trong đó id là số trong ngoặc vuông của danh mục, tối đa 3 id, xếp theo mức phù hợp giảm dần.
+- Khi khách hỏi một câu cụ thể đã có câu trả lời rõ trong "NGUỒN THAM KHẢO", **không** phát dòng đó.
+- Dòng đó là tín hiệu cho hệ thống, không phải câu văn. Không giải thích nó, không nhắc tới nó, không viết gì sau nó."""
+
+
+def build_business_system_prompt(context: str, catalog_digest: str = "") -> str:
     """Assemble the portal system prompt around the retrieved context.
 
-    The guardrail goes last on purpose — see the module docstring.
+    Order is: persona, retrieved context, catalogue and its contract,
+    guardrail. The guardrail goes last on purpose — see the module docstring
+    — so neither document text nor a package name written by an Admin can be
+    read as an instruction that overrides the rules.
     """
-    return (
-        f"{BUSINESS_SYSTEM_PROMPT}\n\n"
-        f"{CONTEXT_HEADING}\n{context}\n\n"
-        f"{BUSINESS_HARD_GUARDRAIL}"
-    )
+    parts = [
+        BUSINESS_SYSTEM_PROMPT,
+        f"{CONTEXT_HEADING}\n{context}",
+    ]
+    if catalog_digest:
+        parts.append(f"{CATALOG_HEADING}\n{catalog_digest}\n\n{SUGGESTION_CONTRACT}")
+    parts.append(BUSINESS_HARD_GUARDRAIL)
+    return "\n\n".join(parts)

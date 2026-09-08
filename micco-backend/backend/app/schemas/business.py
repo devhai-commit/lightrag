@@ -101,11 +101,28 @@ class BusinessChatSource(BaseModel):
     page_no: int = 0
 
 
+class BusinessPackageCard(BaseModel):
+    """A suggested package as a customer sees it.
+
+    Built from an explicit field list (see business_packages.to_card), so a
+    column added to business_packages later cannot reach a customer by default.
+    """
+
+    id: int
+    name: str
+    category: str
+    summary: str
+    target_customer: str | None = None
+    highlights: list[str] = Field(default_factory=list)
+    price_note: str | None = None
+
+
 class BusinessChatMessage(BaseModel):
     message_id: str
     role: str
     content: str
     sources: list[BusinessChatSource] = Field(default_factory=list)
+    recommendations: list[BusinessPackageCard] = Field(default_factory=list)
     created_at: datetime | None = None
 
 

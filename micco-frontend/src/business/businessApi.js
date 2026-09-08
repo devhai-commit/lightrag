@@ -113,11 +113,14 @@ export const businessChatApi = {
  * the document scope and the history, so there is nothing else to send.
  *
  * @param {string} message
- * @param {object} handlers onStatus, onSources, onDelta, onComplete, onError
+ * @param {object} handlers onStatus, onSources, onDelta, onRecommendations,
+ *   onComplete, onError
  * @returns {Promise<void>} resolves when the stream ends
  */
 export async function streamBusinessChat(message, handlers = {}) {
-    const { onStatus, onSources, onDelta, onComplete, onError } = handlers;
+    const {
+        onStatus, onSources, onDelta, onRecommendations, onComplete, onError,
+    } = handlers;
 
     let response;
     try {
@@ -159,6 +162,9 @@ export async function streamBusinessChat(message, handlers = {}) {
                     case 'delta':
                         onDelta?.(chunk.text || '');
                         break;
+                    case 'recommendations':
+                        onRecommendations?.(chunk.packages || []);
+                        break;
                     case 'complete':
                         onComplete?.(chunk);
                         break;
@@ -166,8 +172,8 @@ export async function streamBusinessChat(message, handlers = {}) {
                         onError?.(new BusinessApiError(chunk.message || 'Đã xảy ra lỗi', 0));
                         break;
                     default:
-                        // Phase 4 adds `recommendations`, Phase 5 adds
-                        // `lead_prompt`. Unknown events are ignored, not shown.
+                        // Phase 5 adds `lead_prompt`. Unknown events are
+                        // ignored, never shown.
                         break;
                 }
             },
