@@ -21,6 +21,9 @@ WEBHOOK_TIMEOUT_SECONDS = 5.0
 async def notify_document_uploaded(document_id: int) -> None:
     """Post a document.uploaded event to the configured n8n webhook."""
     if not settings.N8N_WEBHOOK_URL:
+        logger.info(
+            f"n8n webhook: N8N_WEBHOOK_URL not configured, skipping notify for document {document_id}"
+        )
         return
 
     try:
@@ -62,8 +65,12 @@ async def notify_document_uploaded(document_id: int) -> None:
                 } if uploader else None,
             }
 
+        logger.info(f"n8n webhook: notifying document.uploaded for document {document_id} -> {settings.N8N_WEBHOOK_URL}")
+
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT_SECONDS) as client:
             response = await client.post(settings.N8N_WEBHOOK_URL, json=payload)
             response.raise_for_status()
+
+        logger.info(f"n8n webhook: document {document_id} notified successfully (status {response.status_code})")
     except Exception as e:
         logger.warning(f"n8n webhook call failed for document {document_id}: {e}")
