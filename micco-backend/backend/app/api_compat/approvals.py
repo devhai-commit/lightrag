@@ -15,7 +15,7 @@ from app.api_compat.utils import (
     get_all_department_workspaces,
     get_or_create_default_workspace,
 )
-from app.api.documents import process_document_background, process_knowledge_background, UPLOAD_DIR
+from app.api.documents import process_knowledge_background, UPLOAD_DIR
 from docx import Document as DocxDocument
 import aiofiles
 import logging
@@ -30,7 +30,6 @@ ALL_APPROVER_ROLES = ORG_APPROVER_ROLES | DEPT_APPROVER_ROLES
 
 DOC_PENDING_DEPT = "pending"
 DOC_PENDING_ORG = "pending_org"
-DOC_APPROVED = "approved"
 
 KN_PENDING_DEPT = "pending_dept"
 KN_PENDING_ORG = "pending_org"
@@ -338,34 +337,8 @@ async def approve_document(
     else:
         raise HTTPException(status_code=400, detail="Tài liệu không ở trạng thái chờ duyệt")
 
-    doc.approval_status = DOC_APPROVED
-    doc.status = DocumentStatus.PROCESSING
-    await db.commit()
-
-    # Resolve target workspace: use document's department workspace
-    from app.core.config import settings as _settings
-    file_path = str(_settings.BASE_DIR / "uploads" / doc.filename)
-
-    if doc.department_id:
-        target_ws = await get_or_create_department_workspace(db, doc.department_id)
-    else:
-        target_ws = await get_or_create_default_workspace(db)
-
-    # Update document's workspace_id to match its department
-    doc.workspace_id = target_ws.id
-    await db.commit()
-
-    # Trigger background parsing & indexing into department workspace
-    background_tasks.add_task(process_document_background, doc.id, file_path, target_ws.id)
-
-    # If public: replicate indexing into all OTHER department workspaces
-    if doc.visibility == "public":
-        other_workspaces = await get_all_department_workspaces(db)
-        for other_ws in other_workspaces:
-            if other_ws.id != target_ws.id:
-                background_tasks.add_task(
-                    process_document_background, doc.id, file_path, other_ws.id
-                )
+    from app.api.documents import _finalize_approval_and_ingest
+    await _finalize_approval_and_ingest(db, doc, background_tasks)
 
     return {"message": "Đã phê duyệt và đang bắt đầu xử lý", "id": doc_id, "processing_started": True}
 

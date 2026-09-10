@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hmac
 import os
 import re
 import uuid
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, Header, HTTPException, status, UploadFile, File, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -18,8 +19,14 @@ from app.core.exceptions import NotFoundError
 from app.models.knowledge_base import KnowledgeBase
 from app.models.user import User
 from app.models.document import Document, DocumentImage, DocumentStatus
-from app.schemas.document import DocumentResponse, DocumentUploadResponse, DocumentUpdate
+from app.schemas.document import (
+    ApprovalCallbackRequest,
+    DocumentResponse,
+    DocumentUploadResponse,
+    DocumentUpdate,
+)
 from app.schemas.rag import DocumentImageResponse
+from app.services.n8n_webhook import notify_document_uploaded
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +188,7 @@ async def process_knowledge_background(entry_id: int, workspace_id: int):
 @router.post("/upload/{workspace_id}", response_model=DocumentUploadResponse)
 async def upload_document(
     workspace_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -235,6 +243,8 @@ async def upload_document(
     await db.commit()
     await db.refresh(document)
 
+    background_tasks.add_task(notify_document_uploaded, document.id)
+
     return DocumentUploadResponse(
         id=document.id,
         filename=document.original_filename,
@@ -243,6 +253,134 @@ async def upload_document(
         if doc_approval_status == "pending"
         else "Document uploaded. Click 'Process' to extract and index content.",
     )
+
+
+async def _finalize_approval_and_ingest(
+    db: AsyncSession,
+    document: Document,
+    background_tasks: BackgroundTasks,
+) -> KnowledgeBase | None:
+    """Mark a document approved, resolve its target workspace, and kick off ingestion.
+
+    Shared by the in-app approve endpoint (app/api_compat/approvals.py) and the
+    n8n approval-callback endpoint below, so the workspace-resolution + ingest
+    kickoff logic lives in exactly one place.
+
+    The PENDING -> PROCESSING transition is a single conditional UPDATE, so two
+    concurrent/racing calls (e.g. a retried n8n callback) can't both win and
+    double-enqueue ingestion. Returns None if this call lost that race (the
+    document was no longer PENDING by the time it ran).
+    """
+    from sqlalchemy import update as sa_update
+
+    from app.api_compat.utils import (
+        get_all_department_workspaces,
+        get_or_create_default_workspace,
+        get_or_create_department_workspace,
+    )
+
+    result = await db.execute(
+        sa_update(Document)
+        .where(Document.id == document.id, Document.status == DocumentStatus.PENDING)
+        .values(approval_status="approved", status=DocumentStatus.PROCESSING)
+    )
+    await db.commit()
+    if result.rowcount == 0:
+        return None
+    document.approval_status = "approved"
+    document.status = DocumentStatus.PROCESSING
+
+    file_path = str(UPLOAD_DIR / document.filename)
+
+    if document.department_id:
+        target_ws = await get_or_create_department_workspace(db, document.department_id)
+    else:
+        target_ws = await get_or_create_default_workspace(db)
+
+    document.workspace_id = target_ws.id
+    await db.commit()
+
+    background_tasks.add_task(process_document_background, document.id, file_path, target_ws.id)
+
+    if document.visibility == "public":
+        other_workspaces = await get_all_department_workspaces(db)
+        for other_ws in other_workspaces:
+            if other_ws.id != target_ws.id:
+                background_tasks.add_task(
+                    process_document_background, document.id, file_path, other_ws.id
+                )
+
+    return target_ws
+
+
+@router.post("/{document_id}/approval-callback")
+async def approval_callback(
+    document_id: int,
+    payload: ApprovalCallbackRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    x_webhook_secret: str | None = Header(default=None, alias="X-Webhook-Secret"),
+):
+    """Callback n8n calls after the approval email is answered.
+
+    Treats the email response as the final approval decision (bypasses the
+    in-app department -> organization approval chain). Authenticated via a
+    shared secret in the X-Webhook-Secret header, matched against
+    N8N_CALLBACK_SECRET with a constant-time comparison.
+    """
+    if not settings.N8N_CALLBACK_SECRET or not x_webhook_secret or not hmac.compare_digest(
+        x_webhook_secret, settings.N8N_CALLBACK_SECRET
+    ):
+        logger.warning(f"Rejected approval-callback call for document {document_id}: invalid webhook secret")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook secret")
+
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if document is None:
+        raise NotFoundError("Document", document_id)
+
+    already_finalized = {
+        "id": document.id,
+        "approval_status": document.approval_status,
+        "status": document.status,
+        "message": "Document already finalized; no action taken.",
+    }
+
+    # Fast path: once a document has left PENDING, this callback already ran once
+    # (approved -> ingest kicked off, or rejected) — retries are a safe no-op.
+    if document.status != DocumentStatus.PENDING:
+        return already_finalized
+
+    if payload.approved:
+        target_ws = await _finalize_approval_and_ingest(db, document, background_tasks)
+        if target_ws is None:
+            return already_finalized
+        return {
+            "id": document.id,
+            "approval_status": document.approval_status,
+            "status": document.status,
+            "workspace_id": target_ws.id,
+            "message": "Approved via email; ingestion started.",
+        }
+
+    from sqlalchemy import update as sa_update
+
+    reject_result = await db.execute(
+        sa_update(Document)
+        .where(Document.id == document.id, Document.status == DocumentStatus.PENDING)
+        .values(approval_status="rejected", status=DocumentStatus.REJECTED, approval_note=payload.note)
+    )
+    await db.commit()
+    if reject_result.rowcount == 0:
+        return already_finalized
+    document.approval_status = "rejected"
+    document.status = DocumentStatus.REJECTED
+    return {
+        "id": document.id,
+        "approval_status": document.approval_status,
+        "status": document.status,
+        "message": "Rejected via email; ingestion skipped.",
+    }
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)

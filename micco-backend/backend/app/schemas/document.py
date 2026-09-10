@@ -46,3 +46,10 @@ class DocumentUploadResponse(BaseModel):
     filename: str
     status: DocumentStatus
     message: str
+
+
+class ApprovalCallbackRequest(BaseModel):
+    """Body n8n posts back after the approval email is answered."""
+
+    approved: bool
+    note: str | None = None

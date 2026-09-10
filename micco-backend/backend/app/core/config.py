@@ -123,6 +123,10 @@ class Settings(BaseSettings):
     NEXUSRAG_RERANKER_TOP_K: int = 8
     NEXUSRAG_MIN_RELEVANCE_SCORE: float = 0.15
 
+    # n8n document-upload notification webhook
+    N8N_WEBHOOK_URL: str = Field(default="")
+    N8N_CALLBACK_SECRET: str = Field(default="")
+
     # CORS
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
