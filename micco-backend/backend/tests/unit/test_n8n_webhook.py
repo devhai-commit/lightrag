@@ -90,6 +90,7 @@ def _fake_document(**overrides) -> SimpleNamespace:
         workspace_id=1,
         department_id=2,
         visibility="internal",
+        approval_status="pending",
         created_at=None,
         uploader_id=7,
     )
@@ -151,6 +152,7 @@ async def test_notify_document_uploaded_posts_expected_payload(monkeypatch):
     assert payload["event"] == "document.uploaded"
     assert payload["document"]["id"] == document.id
     assert payload["document"]["status"] == "pending"
+    assert payload["document"]["approval_status"] == "pending"
     assert payload["uploader"] == {"id": user.id, "name": user.name, "email": user.email}
 
 

@@ -56,6 +56,7 @@ async def notify_document_uploaded(document_id: int) -> None:
                     "workspace_id": document.workspace_id,
                     "department_id": document.department_id,
                     "visibility": document.visibility,
+                    "approval_status": document.approval_status,
                     "created_at": document.created_at.isoformat() if document.created_at else None,
                 },
                 "uploader": {
