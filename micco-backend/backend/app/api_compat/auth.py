@@ -9,8 +9,10 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.business_deps import assert_business_account_active
 from app.core.deps import get_db
 from app.core.security import (
+    BUSINESS_ROLE,
     hash_password,
     verify_password,
     create_access_token,
@@ -35,6 +37,10 @@ AVATAR_DIR = settings.BASE_DIR / "uploads" / "avatars"
 AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 AVATAR_MAX_SIZE = 5 * 1024 * 1024  # 5MB
 AVATAR_ALLOWED = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+BUSINESS_PORTAL_DETAIL = (
+    "Tài khoản doanh nghiệp vui lòng đăng nhập tại cổng doanh nghiệp."
+)
 
 
 @router.get("/departments", response_model=list[DepartmentResponse])
@@ -143,11 +149,12 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Invalid email or password",
         )
 
-    if user.role == "Doanh nghiệp":
-        if user.approval_status == "pending":
-            raise HTTPException(status_code=403, detail="Tài khoản đang chờ duyệt. Vui lòng quay lại sau.")
-        if user.approval_status == "rejected":
-            raise HTTPException(status_code=403, detail="Tài khoản không được duyệt. Liên hệ Micco để biết thêm chi tiết.")
+    # Business accounts belong to the external portal: an internal token would be
+    # rejected by get_current_user anyway, so send them to the right entrance.
+    # Approval state is reported first because it is the more useful message.
+    assert_business_account_active(user)
+    if user.role == BUSINESS_ROLE:
+        raise HTTPException(status_code=403, detail=BUSINESS_PORTAL_DETAIL)
 
     token = create_access_token(data={"sub": user.id})
     return TokenResponse(access_token=token)

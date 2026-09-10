@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { workspacesApi, ragChatApi, ragDocumentsApi, sttApi, readSSEStream } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { renderMarkdown } from '../utils/markdown';
 
 // ─── Default system prompt (mirror of backend DEFAULT_SYSTEM_PROMPT) ──────────
 const DEFAULT_PROMPT = `Bạn là trợ lý AI chuyên nghiệp và hỗ trợ giải đáp các câu hỏi dựa trên tài liệu được cung cấp.
@@ -136,130 +137,6 @@ function SystemPromptPanel({ workspace, onClose, onSaved }) {
         </div>
     );
 }
-
-function renderMarkdown(text, sources = []) {
-    if (!text) return '';
-    
-    let mathBlocks = [];
-    let html = text;
-
-    // 1. Extract and render Math (Block and Inline)
-    const hasKatex = typeof window !== 'undefined' && window.katex;
-
-    // Block math: $$ ... $$
-    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
-        if (!hasKatex) return match;
-        try {
-            const rendered = window.katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
-            const id = `__MATH_BLOCK_${mathBlocks.length}__`;
-            mathBlocks.push({ id, html: `<div class="katex-display-wrapper my-4 overflow-x-auto">${rendered}</div>` });
-            return id;
-        } catch (e) { return match; }
-    });
-
-    // Inline math: $ ... $
-    html = html.replace(/\$([^\s\$][^\$]*?[^\s\$])\$/g, (match, formula) => {
-        if (!hasKatex) return match;
-        try {
-            const rendered = window.katex.renderToString(formula, { displayMode: false, throwOnError: false });
-            const id = `__MATH_INLINE_${mathBlocks.length}__`;
-            mathBlocks.push({ id, html: `<span class="katex-inline">${rendered}</span>` });
-            return id;
-        } catch (e) { return match; }
-    });
-
-    // 2. Table handling (Basic Markdown table)
-    const lines = html.split('\n');
-    let inTable = false;
-    let tableHtml = '';
-    let processedLines = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        // Check if line looks like a table row (has at least one | and isn't just a separator)
-        if (line.includes('|')) {
-            if (!inTable) {
-                inTable = true;
-                tableHtml = '<div class="table-container my-3 overflow-x-auto border border-gray-100 dark:border-gray-800 rounded-lg shadow-sm"><table class="min-w-full text-xs text-left text-gray-700 dark:text-gray-300 border-collapse">';
-            }
-            
-            // Refined cell splitting: remove empty first/last elements if they were caused by leading/trailing pipes
-            let cells = line.split('|').map(c => c.trim());
-            if (cells[0] === '') cells.shift();
-            if (cells[cells.length - 1] === '') cells.pop();
-            
-            // Skip separator row if it exists
-            if (line.includes('---') || line.match(/^[|\s:-]+$/)) {
-                continue;
-            }
-
-            const isHeader = !tableHtml.includes('<tbody>');
-            if (isHeader && !tableHtml.includes('<thead>')) {
-                tableHtml += '<thead><tr class="bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">';
-                cells.forEach(c => tableHtml += `<th class="px-4 py-2 font-bold text-gray-900 dark:text-white">${c}</th>`);
-                tableHtml += '</tr></thead><tbody>';
-            } else {
-                tableHtml += '<tr class="border-b border-gray-50 dark:border-gray-800/50 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">';
-                cells.forEach(c => tableHtml += `<td class="px-4 py-2">${c}</td>`);
-                tableHtml += '</tr>';
-            }
-        } else {
-            if (inTable) {
-                tableHtml += '</tbody></table></div>';
-                processedLines.push(tableHtml);
-                inTable = false;
-                tableHtml = '';
-            }
-            processedLines.push(lines[i]);
-        }
-    }
-    if (inTable) {
-        tableHtml += '</tbody></table></div>';
-        processedLines.push(tableHtml);
-    }
-    html = processedLines.join('\n');
-
-    // 3. Standard Markdown formatting
-    html = html
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-mono text-pink-600 dark:text-pink-400">$1</code>')
-        .replace(/```([\s\S]*?)```/g, '<pre class="my-2 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-[10px] font-mono overflow-x-auto border border-gray-200 dark:border-gray-700"><code>$1</code></pre>')
-        .replace(/^#{3}\s+(.+)$/gm, (match, p1) => `<h3 id="h3-${p1}" class="font-black text-xs mt-3 mb-1 text-gray-900 dark:text-white uppercase tracking-wider">${p1}</h3>`)
-        .replace(/^#{2}\s+(.+)$/gm, (match, p1) => `<h2 id="h2-${p1}" class="font-black text-sm mt-4 mb-1.5 text-gray-900 dark:text-white uppercase tracking-wider">${p1}</h2>`)
-        .replace(/^#{1}\s+(.+)$/gm, (match, p1) => `<h1 id="h1-${p1}" class="font-black text-base mt-5 mb-2 text-gray-900 dark:text-white uppercase tracking-wider">${p1}</h1>`)
-        .replace(/^[\-\*]\s+(.+)$/gm, '<li class="ml-4 list-disc text-gray-700 dark:text-gray-300">$1</li>')
-        .replace(/(<li.*<\/li>)/gs, '<ul class="my-1.5 space-y-0.5">$1</ul>');
-
-    // 4. Newline to Paragraphs
-    let paragraphs = html.split(/\n\n+/);
-    html = paragraphs.map(p => {
-        if (p.startsWith('<') && (p.includes('<h') || p.includes('<pre') || p.includes('<ul') || p.includes('<div') || p.includes('<table'))) {
-            return p;
-        }
-        return `<p class="mb-1 last:mb-0">${p.replace(/\n/g, '<br/>')}</p>`;
-    }).join('\n');
-
-    // 5. Inline citations replacement
-    if (sources && sources.length > 0) {
-        html = html.replace(/\[([a-zA-Z0-9_\-\.:\?]+)\]/g, (match, p1) => {
-            const src = sources.find(s => s.index === p1 || s.formatted === p1 || s.source_file === p1 || `doc:${s.document_id}` === p1);
-            if (src) {
-                return `<button type="button" class="citation inline-flex items-center justify-center px-1.5 py-0.5 mx-0.5 text-[10px] font-bold rounded bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-500/40 transition-colors cursor-pointer align-baseline ring-1 ring-emerald-200 dark:ring-emerald-500/30" data-source-id="${src.document_id}" data-index="${src.index || ''}" title="Nguồn: ${src.source_file || src.formatted || src.document_id}">[${p1}]</button>`;
-            }
-            return match;
-        });
-    }
-
-    // 6. Restore math placeholders
-    mathBlocks.forEach(block => {
-        html = html.replace(block.id, block.html);
-    });
-
-    return `<div class="markdown-content">${html}</div>`;
-}
-
-
 
 function renderPreviewMarkdown(text, highlightText) {
     let html = renderMarkdown(text);

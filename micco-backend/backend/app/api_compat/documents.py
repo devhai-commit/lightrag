@@ -10,7 +10,7 @@ import aiofiles
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select, func, or_, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,7 @@ from app.api_compat.utils import (
     map_rag_doc_to_legacy_with_dept,
     workspace_file_path,
 )
+from app.services.n8n_webhook import notify_document_uploaded
 
 ORG_APPROVER_ROLES = {"Admin", "Giám đốc", "Phó giám đốc"}
 DEPT_APPROVER_ROLES = {"Admin", "Trưởng phòng"}
@@ -51,6 +52,7 @@ THUMBNAIL_DIR = UPLOAD_DIR / "thumbnails"
 THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILES_PER_UPLOAD = 20
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".pptx", ".xlsx", ".csv", ".png", ".jpg", ".jpeg"}
 
 
@@ -187,6 +189,7 @@ async def list_documents(
 
 @router.post("/upload")
 async def upload_documents(
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     tags: str | None = Form(None),
     category: str | None = Form(None),
@@ -240,6 +243,12 @@ async def upload_documents(
         workspace = await get_or_create_department_workspace(db, effective_dept_id)
     else:
         workspace = await get_or_create_default_workspace(db)
+
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tối đa {MAX_FILES_PER_UPLOAD} file mỗi lần tải lên",
+        )
 
     created: list[dict] = []
 
@@ -311,6 +320,8 @@ async def upload_documents(
         if doc_approval_status == "approved":
             doc.status = DocumentStatus.PROCESSING
         await db.commit()
+
+        background_tasks.add_task(notify_document_uploaded, doc.id)
 
         # Launch background processing for auto-approved uploads
         if doc_approval_status == "approved":

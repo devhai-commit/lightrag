@@ -131,6 +131,30 @@ class AdminUserResponse(BaseModel):
     avatar: str | None = None
     created_at: datetime | None = None
     approval_status: str | None = None
+    # Business account fields — shown when an admin reviews a "Doanh nghiệp"
+    # signup; null for internal roles.
+    company_name: str | None = None
+    tax_code: str | None = None
+    phone: str | None = None
+    industry: str | None = None
+
+    @classmethod
+    def from_user(cls, user) -> "AdminUserResponse":
+        return cls(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=user.role,
+            department_id=user.department_id,
+            department_name=user.department.name if user.department else None,
+            avatar=user.avatar,
+            created_at=user.created_at,
+            approval_status=user.approval_status,
+            company_name=user.company_name,
+            tax_code=user.tax_code,
+            phone=user.phone,
+            industry=user.industry,
+        )
 
 
 class AdminApproveBusinessRequest(BaseModel):

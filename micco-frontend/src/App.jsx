@@ -17,6 +17,7 @@ import Approvals from './pages/Approvals';
 import ProcessingStatus from './pages/ProcessingStatus';
 import WorkspaceManagement from './pages/WorkspaceManagement';
 import DashboardLayout from './layouts/DashboardLayout';
+import BusinessPortal from './business/BusinessPortal';
 
 const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-gray-950">
@@ -59,6 +60,13 @@ function App() {
             {/* Root → go to login */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/landing" element={<Landing />} />
+
+            {/* External B2B portal. Its own auth context and token key, so it
+                sits outside both guards below: ProtectedRoute would demand an
+                internal session, and PublicOnlyRoute would bounce a customer
+                to /dashboard whenever an employee is signed in on the same
+                browser. */}
+            <Route path="/business/*" element={<BusinessPortal />} />
 
             {/* Public-only: redirect to /dashboard if already authenticated */}
             <Route element={<PublicOnlyRoute />}>

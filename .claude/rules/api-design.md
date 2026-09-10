@@ -38,4 +38,15 @@ class ChatResponse(BaseModel):
 - `POST /api/auth/login` chặn (403) tài khoản `role == "Doanh nghiệp"` khi `approval_status` không phải `"approved"` — phân biệt message `"pending"` vs `"rejected"`.
 - Admin duyệt/từ chối qua `PUT /api/admin/users/{id}/approval` (chỉ áp dụng cho role Doanh nghiệp, 400 nếu không phải).
 - `User.approval_status` (`"pending"/"approved"/"rejected"`, `None` cho các role nội bộ) mirror convention của `Document.approval_status`.
-- Catalog sản phẩm, tool gợi ý gói, mặt trận chat B2B thật (workspace `audience`, `package_recommendation.py`) CHƯA được triển khai — chỉ mới có phần đăng ký + duyệt tài khoản.
+- `POST /api/auth/login` cũng chặn (403) tài khoản Doanh nghiệp **đã** được duyệt, và chỉ sang cổng doanh nghiệp: cổng nội bộ không phải bề mặt của khách.
+- Bề mặt bên ngoài nằm dưới `/api/v1/business/...`, sau `get_current_business_user` (yêu cầu claim `scope: "business"`, từ chối token `dev-skip`):
+  `POST /auth/login`, `GET /me`, `POST /chat/stream` (SSE), `GET` và `DELETE /chat/history`.
+  Chỉ bề mặt này dùng envelope `{"data", "meta"}`.
+- `POST /chat/stream` nhận **chỉ** `{message}` với `extra="forbid"`; workspace, phạm vi tài liệu, retrieval mode và history đều do server quyết định.
+  SSE event: `status`, `sources`, `delta`, `recommendations`, `complete`, `error`.
+- Gợi ý gói đi kèm trong **cùng một** LLM call: model kết câu trả lời bằng sentinel `[[GOI_Y: id1,id2,id3]]`, sentinel bị strip khỏi text hiển thị trước khi stream, id được validate lại với catalog đang active (id lạ hoặc inactive thì bỏ, cap 3), rồi phát event `recommendations`.
+  Gợi ý luôn là phần cộng thêm: sentinel dở dang, id bịa hay lỗi đọc catalog đều thoái hoá thành "không có gợi ý", câu trả lời vẫn nguyên.
+- Endpoint admin của portal: `PUT /api/v1/business/admin/workspaces/{id}/audience`, `GET /api/v1/business/admin/documents`, `PUT /api/v1/business/admin/documents/{id}/publish` (đều sau `require_admin`).
+- Catalog gói: bảng `business_packages` (flat list, `category` là string; `price_note` là text tự do, cố ý không phải số). Chỉ row `is_active` mới vào prompt và mới được gợi ý.
+  Chưa có admin CRUD: hiện populate bằng `seed_business_packages.py` (nội dung placeholder, chưa được sales duyệt).
+- **CHƯA triển khai**: chuyển lead cho sales (Phase 5).

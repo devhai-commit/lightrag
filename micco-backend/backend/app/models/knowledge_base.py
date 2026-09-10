@@ -49,6 +49,15 @@ class KnowledgeBase(Base):
         String(20), nullable=False, default="department"
     )
 
+    # Audience: "internal" | "business" — orthogonal to visibility above.
+    # visibility governs which employees may read/manage the workspace;
+    # audience decides whether the external B2B portal serves it at all.
+    # At most one workspace may be "business" (partial unique index, see
+    # migration 009_add_business_audience).
+    audience: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="internal", server_default="internal"
+    )
+
     # Relationships
     documents: Mapped[list["Document"]] = relationship(
         back_populates="workspace", cascade="all, delete-orphan"

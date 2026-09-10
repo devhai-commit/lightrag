@@ -308,6 +308,15 @@ function SignInForm({ onLogin, isDark, toggleTheme, onToggle, mobile }) {
                     <GoogleIcon />
                     Đăng nhập với Google
                 </button>
+
+                {/* Business portal. Internal /api/auth/login rejects business
+                    accounts, so they must be sent here rather than made to
+                    discover the 403 themselves. */}
+                <Link to="/business/login"
+                    className="w-full py-3 rounded-2xl font-semibold text-sm text-primary-600 dark:text-secondary-400 border-2 border-dashed border-primary-200 dark:border-secondary-400/30 hover:bg-primary-50 dark:hover:bg-secondary-400/10 transition-all duration-300 flex items-center justify-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Đăng nhập Doanh nghiệp
+                </Link>
             </form>
 
             {/* Toggle (mobile only) */}
