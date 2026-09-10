@@ -66,6 +66,27 @@ async def test_legacy_upload_schedules_n8n_notification_for_pending_document(
     assert notifier.calls == [document_id]
 
 
+async def test_legacy_upload_rejects_batches_over_the_file_cap(
+    legacy_documents_client: AsyncClient, internal_user, monkeypatch
+):
+    """A single request can't fan out an unbounded number of webhook calls."""
+    notifier = _RecordingNotifier()
+    monkeypatch.setattr(legacy_documents_module, "notify_document_uploaded", notifier)
+
+    token = create_access_token(data={"sub": internal_user.id})
+    legacy_documents_client.headers.update({"Authorization": f"Bearer {token}"})
+
+    too_many = legacy_documents_module.MAX_FILES_PER_UPLOAD + 1
+    files = [
+        ("files", (f"bao_cao_{i}.txt", b"noi dung", "text/plain")) for i in range(too_many)
+    ]
+
+    response = await legacy_documents_client.post(UPLOAD_URL, files=files)
+
+    assert response.status_code == 400
+    assert notifier.calls == []
+
+
 async def test_legacy_upload_schedules_n8n_notification_for_auto_approved_document(
     legacy_documents_client: AsyncClient, admin_user, monkeypatch
 ):

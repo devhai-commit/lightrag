@@ -52,6 +52,7 @@ THUMBNAIL_DIR = UPLOAD_DIR / "thumbnails"
 THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILES_PER_UPLOAD = 20
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx", ".pptx", ".xlsx", ".csv", ".png", ".jpg", ".jpeg"}
 
 
@@ -242,6 +243,12 @@ async def upload_documents(
         workspace = await get_or_create_department_workspace(db, effective_dept_id)
     else:
         workspace = await get_or_create_default_workspace(db)
+
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tối đa {MAX_FILES_PER_UPLOAD} file mỗi lần tải lên",
+        )
 
     created: list[dict] = []
 
