@@ -8,6 +8,9 @@ shared secret in X-Webhook-Secret (see app.core.deps.verify_n8n_webhook_secret).
 """
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +22,8 @@ from app.models.document import Document, DocumentStatus
 from app.schemas.document import AgentReportRequest
 from app.services.agent_pdf import render_markdown_to_pdf
 from app.services.document_text_extractor import extract_full_text
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["n8n-agent"])
 
@@ -43,6 +48,11 @@ async def get_agent_content(document_id: int, db: AsyncSession = Depends(get_db)
         raise NotFoundError("Document file", document_id)
 
     extracted = await extract_full_text(file_path, document.file_type)
+
+    logger.info(
+        f"n8n agent-content: served document {document.id} ({document.original_filename}), "
+        f"supported={extracted.supported}, truncated={extracted.truncated}"
+    )
 
     return {
         "id": document.id,
@@ -71,7 +81,14 @@ async def create_agent_report(
     if document is None:
         raise NotFoundError("Document", document_id)
 
-    pdf_bytes = render_markdown_to_pdf(payload.title, payload.content_markdown)
+    pdf_bytes = await asyncio.to_thread(
+        render_markdown_to_pdf, payload.title, payload.content_markdown
+    )
+
+    logger.info(
+        f"n8n agent-report: rendered PDF report for document {document_id} "
+        f"({document.original_filename})"
+    )
 
     return Response(
         content=pdf_bytes,
