@@ -100,7 +100,8 @@ Khi `supported=false`: `content=null`, kèm `message` giải thích.
 ## Giả định phía n8n (ngoài phạm vi code)
 
 - Email thông báo gốc (do n8n soạn) phải chứa một định danh nhận diện được document_id (vd trong subject hoặc header tuỳ biến) để khi reply, n8n map lại đúng document. Đây là thay đổi cấu hình workflow n8n, không phải thay đổi backend.
-- Trust boundary: bất kỳ ai có quyền truy cập hộp thư nhận thông báo đều được xem là có quyền hỏi nội dung tài liệu đó — giống hệt mô hình tin cậy hiện tại của approve/reject qua email (không có kiểm tra định danh người trả lời ở tầng backend).
+- Trust boundary: bất kỳ ai có quyền truy cập hộp thư nhận thông báo đều được xem là có quyền hỏi nội dung tài liệu đó — cùng cơ chế xác thực (secret dùng chung) với approve/reject qua email hiện tại, nhưng **không phải cùng mức rủi ro**.
+- **Blast radius tăng so với approve/reject**: trước tính năng này, secret bị lộ/đoán được chỉ cho phép approve/reject một document — một quyết định yes/no, không lộ nội dung. Từ tính năng này, cùng một secret còn cho phép đọc **toàn bộ nội dung văn bản gốc** của bất kỳ document PENDING nào, trên toàn tổ chức, bỏ qua hoàn toàn RBAC theo phòng ban/visibility vốn đang gate các endpoint `/documents/{id}/download` và `/preview` thông thường. Document id hiện là số tuần tự/dễ đoán, và app chưa có rate limiting. Vì vậy entropy của secret và chính sách xoay vòng (rotation) cần được xem xét lại tương xứng với mức độ nhạy cảm mới này, không chỉ dựa trên yêu cầu cũ của luồng approve/reject.
 
 ## Testing
 
