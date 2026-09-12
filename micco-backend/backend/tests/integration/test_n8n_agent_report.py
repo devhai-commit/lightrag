@@ -46,6 +46,22 @@ async def test_agent_report_rejects_empty_content_markdown(
     assert response.status_code == 422
 
 
+async def test_agent_report_rejects_oversized_content_markdown(
+    client: AsyncClient, make_workspace, make_document, monkeypatch
+):
+    _configure_secret(monkeypatch)
+    workspace = await make_workspace()
+    doc = await make_document(workspace_id=workspace.id)
+
+    response = await client.post(
+        REPORT_URL.format(document_id=doc.id),
+        json={"title": "Tóm tắt", "content_markdown": "a" * 100_001},
+        headers={"X-Webhook-Secret": SECRET},
+    )
+
+    assert response.status_code == 422
+
+
 async def test_agent_report_404_for_unknown_document(client: AsyncClient, monkeypatch):
     _configure_secret(monkeypatch)
 

@@ -58,5 +58,5 @@ class ApprovalCallbackRequest(BaseModel):
 class AgentReportRequest(BaseModel):
     """Body n8n's AI Agent posts to render its drafted answer as a PDF."""
 
-    title: str
-    content_markdown: str = Field(min_length=1)
+    title: str = Field(max_length=500)
+    content_markdown: str = Field(min_length=1, max_length=100_000)
