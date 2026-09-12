@@ -8,7 +8,7 @@ shared secret in X-Webhook-Secret (see app.core.deps.verify_n8n_webhook_secret).
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,8 @@ from app.api.documents import UPLOAD_DIR
 from app.core.deps import get_db, verify_n8n_webhook_secret
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.document import Document, DocumentStatus
+from app.schemas.document import AgentReportRequest
+from app.services.agent_pdf import render_markdown_to_pdf
 from app.services.document_text_extractor import extract_full_text
 
 router = APIRouter(prefix="/documents", tags=["n8n-agent"])
@@ -51,3 +53,30 @@ async def get_agent_content(document_id: int, db: AsyncSession = Depends(get_db)
         "truncated": extracted.truncated,
         "message": None if extracted.supported else "Preview not supported for this file type",
     }
+
+
+@router.post(
+    "/{document_id}/agent-report",
+    dependencies=[Depends(verify_n8n_webhook_secret)],
+)
+async def create_agent_report(
+    document_id: int,
+    payload: AgentReportRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Render the AI Agent's drafted markdown answer as a PDF for email attachment."""
+    document = (
+        await db.execute(select(Document).where(Document.id == document_id))
+    ).scalar_one_or_none()
+    if document is None:
+        raise NotFoundError("Document", document_id)
+
+    pdf_bytes = render_markdown_to_pdf(payload.title, payload.content_markdown)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="tai_lieu_{document_id}_tom_tat.pdf"'
+        },
+    )
