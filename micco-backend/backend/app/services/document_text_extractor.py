@@ -8,11 +8,14 @@ email reply; this extracts plain text only, nothing else.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import aiofiles
 from docx import Document as DocxDocument
+
+logger = logging.getLogger(__name__)
 
 AGENT_CONTENT_MAX_CHARS = 20_000
 
@@ -36,9 +39,17 @@ async def extract_full_text(file_path: Path, file_type: str) -> ExtractedText:
         async with aiofiles.open(file_path, mode="r", encoding="utf-8", errors="ignore") as f:
             raw = await f.read()
     elif ext == "docx":
-        raw = await asyncio.to_thread(_extract_docx_text, file_path)
+        try:
+            raw = await asyncio.to_thread(_extract_docx_text, file_path)
+        except Exception:
+            logger.warning(f"Failed to extract docx text from {file_path}", exc_info=True)
+            return ExtractedText(supported=False, content=None, truncated=False)
     else:
-        raw = await asyncio.to_thread(_extract_pdf_text, file_path)
+        try:
+            raw = await asyncio.to_thread(_extract_pdf_text, file_path)
+        except Exception:
+            logger.warning(f"Failed to extract pdf text from {file_path}", exc_info=True)
+            return ExtractedText(supported=False, content=None, truncated=False)
 
     truncated = len(raw) > AGENT_CONTENT_MAX_CHARS
     content = raw[:AGENT_CONTENT_MAX_CHARS] if truncated else raw

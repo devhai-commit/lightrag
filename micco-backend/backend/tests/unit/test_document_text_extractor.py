@@ -84,3 +84,28 @@ async def test_extract_full_text_truncates_content_over_the_cap(tmp_path: Path):
 
     assert result.truncated is True
     assert len(result.content) == AGENT_CONTENT_MAX_CHARS
+
+
+async def test_extract_full_text_degrades_gracefully_for_corrupt_pdf(tmp_path: Path):
+    """agent-content serves PENDING documents that haven't been through the
+    main NexusRAG parsing pipeline yet, so a corrupt/truncated PDF is a real
+    scenario — it must not become an unhandled 500."""
+    file_path = tmp_path / "corrupt.pdf"
+    file_path.write_bytes(b"not a real pdf, just garbage bytes 1234567890")
+
+    result = await extract_full_text(file_path, "pdf")
+
+    assert result.supported is False
+    assert result.content is None
+    assert result.truncated is False
+
+
+async def test_extract_full_text_degrades_gracefully_for_corrupt_docx(tmp_path: Path):
+    file_path = tmp_path / "corrupt.docx"
+    file_path.write_bytes(b"not a docx, garbage bytes")
+
+    result = await extract_full_text(file_path, "docx")
+
+    assert result.supported is False
+    assert result.content is None
+    assert result.truncated is False
